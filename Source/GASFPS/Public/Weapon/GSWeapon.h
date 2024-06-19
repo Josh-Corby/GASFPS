@@ -37,6 +37,14 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	virtual USkeletalMeshComponent* GetWeaponMesh3P() const { return WeaponMesh3P; }
 
+	UFUNCTION(NetMulticast, Reliable)
+	void OnDropped(FVector NewLocation);
+	virtual void OnDropped_Implementation(FVector NewLocation);
+	virtual bool OnDropped_Validate(FVector NewLocation);
+
+	UPROPERTY(BlueprintReadWrite)
+	bool bSpawnWithCollision = true;
+
 protected:
 
 	virtual void BeginPlay() override;
@@ -61,9 +69,6 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly);
 	FVector WeaponMesh3PPickupRelativeLocation;
-
-	UPROPERTY(BlueprintReadWrite)
-	bool bSpawnWithCollision = true;
 
 	virtual void PickUpOnTouch(AGSCharacterBase* InCharacter);
 

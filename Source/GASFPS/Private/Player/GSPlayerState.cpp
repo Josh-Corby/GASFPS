@@ -4,7 +4,6 @@
 #include "Player/GSPlayerState.h"
 
 #include "AbilitySystem/GSAbilitySystemComponent.h"
-#include "AbilitySystem/Attributes/GSCombatSet.h"
 #include "AbilitySystem/Attributes/GSHealthSet.h"
 
 AGSPlayerState::AGSPlayerState()
@@ -14,7 +13,6 @@ AGSPlayerState::AGSPlayerState()
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 
 	HealthSet = CreateDefaultSubobject<UGSHealthSet>("HealthSet");
-	CombatSet = CreateDefaultSubobject<UGSCombatSet>("CombatSet");
 
 	NetUpdateFrequency = 100.f;
 }

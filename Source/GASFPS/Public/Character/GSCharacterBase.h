@@ -45,7 +45,6 @@ public:
 	USkeletalMeshComponent* GetThirdPersonMesh() const { return GetMesh(); }
 
 	UGSHealthSet* GetHealthSet() const { return HealthSet; }
-	UGSCombatSet* GetCombatSet() const { return CombatSet; }
 
 	bool IsInFirstPersonPerspective() const { return bIsFirstPersonPerspective; }
 	void AddAbilities(AActor* AbilityOwner, const TArray<const UGSAbilitySet*> AbilitiesToGive) const;
@@ -55,6 +54,9 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	bool RemoveWeaponFromInventory(AGSWeapon* WeaponToRemove);
+
+	UFUNCTION(BlueprintCallable)
+	void RemoveAllWeaponsFromInventory();
 
 	UFUNCTION(BlueprintCallable)
 	void EquipWeapon(AGSWeapon* NewWeapon);
@@ -86,13 +88,13 @@ protected:
 	FGSCharacterInventory Inventory;
 
 	UPROPERTY()
-	TObjectPtr<UGSCombatSet> CombatSet;
-
-	UPROPERTY()
 	TObjectPtr<UGSHealthSet> HealthSet;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	float BaseWalkSpeed = 600.f;
+
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Inventory")
+	TArray<TSubclassOf<AGSWeapon>> DefaultInventoryWeaponClasses;
 
 protected:
 	void SetCurrentWeapon(AGSWeapon* NewWeapon, AGSWeapon* LastWeapon);
@@ -116,5 +118,11 @@ protected:
 	void ClientSyncCurrentWeapon_Implementation(AGSWeapon* InWeapon);
 	bool ClientSyncCurrentWeapon_Validate(AGSWeapon* InWeapon);
 
-	void Die();
+	virtual void Die();
+
+	UFUNCTION(BlueprintCallable)
+	virtual void FinishDying();
+
+	// Server spawns default inventory
+	void SpawnDefaultInventory();
 };

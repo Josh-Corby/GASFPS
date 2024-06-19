@@ -5,7 +5,6 @@
 #include "AbilitySystemComponent.h"
 #include "GSGameplayTags.h"
 #include "GSAbilitySystemLibrary.h"
-#include "AbilitySystem/Attributes/GSCombatSet.h"
 #include "AbilitySystem/Attributes/GSHealthSet.h"
 
 struct FDamageStatics

@@ -7,6 +7,8 @@
 #include "Net/UnrealNetwork.h"
 #include "AbilitySystem/Attributes/GSHealthSet.h"
 #include "Weapon/GSWeapon.h"
+#include "Components/CapsuleComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Weapon/GSRangedWeapon.h"
 
 // Sets default values
@@ -40,9 +42,11 @@ void AGSCharacterBase::BeginPlay()
 	{
 		HealthSet->OnOutOfHealth.AddLambda([this](AActor* /*EffectInstigator*/, AActor* /*EffectCauser*/, const FGameplayEffectSpec* /*EffectSpec*/, float /*EffectMagnitude*/, float /*OldValue*/, float /*NewValue*/)
 		{
-			Destroy();
+			Die();
 		});
 	}
+
+	GetWorldTimerManager().SetTimerForNextTick(this, &AGSCharacterBase::SpawnDefaultInventory);
 }
 
 void AGSCharacterBase::InitAbilityActorInfo()
@@ -90,6 +94,41 @@ bool AGSCharacterBase::RemoveWeaponFromInventory(AGSWeapon* WeaponToRemove)
 	}
 
 	return false;
+}
+
+void AGSCharacterBase::RemoveAllWeaponsFromInventory()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	UnEquipCurrentWeapon();
+
+
+	float radius = 50.0f;
+	float NumWeapons = Inventory.Weapons.Num();
+
+	if (NumWeapons > 1)
+	{
+		for (int32 i = NumWeapons - 1; i >= 0; i--)
+		{
+			AGSWeapon* Weapon = Inventory.Weapons[i];
+			RemoveWeaponFromInventory(Weapon);
+
+			// Set the weapon up as a pickup
+
+			float OffsetX = radius * FMath::Cos((i / NumWeapons) * 2.0f * PI);
+			float OffsetY = radius * FMath::Sin((i / NumWeapons) * 2.0f * PI);
+			Weapon->OnDropped(GetActorLocation() + FVector(OffsetX, OffsetY, 0.0f));
+		}
+	}
+	else
+	{
+		AGSWeapon* Weapon = Inventory.Weapons[0];
+		RemoveWeaponFromInventory(Weapon);
+		Weapon->OnDropped(GetActorLocation());
+	}
 }
 
 void AGSCharacterBase::EquipWeapon(AGSWeapon* NewWeapon)
@@ -225,5 +264,47 @@ bool AGSCharacterBase::ClientSyncCurrentWeapon_Validate(AGSWeapon* InWeapon)
 
 void AGSCharacterBase::Die()
 {
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetCharacterMovement()->GravityScale = 0;
+	GetCharacterMovement()->Velocity = FVector(0);
+
+	FinishDying();
+}
+
+void AGSCharacterBase::FinishDying()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	RemoveAllWeaponsFromInventory();
+
 	Destroy();
+}
+
+void AGSCharacterBase::SpawnDefaultInventory()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	int32 NumWeaponClasses = DefaultInventoryWeaponClasses.Num();
+	for (int32 i = 0; i < NumWeaponClasses; i++)
+	{
+		if (!DefaultInventoryWeaponClasses[i])
+		{
+			// An empty item was added to the Array in blueprint
+			continue;
+		}
+
+		AGSWeapon* NewWeapon = GetWorld()->SpawnActorDeferred<AGSWeapon>(DefaultInventoryWeaponClasses[i],
+			FTransform::Identity, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+			NewWeapon->bSpawnWithCollision = false;
+			NewWeapon->FinishSpawning(FTransform::Identity);
+
+			bool bEquipFirstWeapon = i == 0;
+			AddWeaponToInventory(NewWeapon, bEquipFirstWeapon);
+	}
 }

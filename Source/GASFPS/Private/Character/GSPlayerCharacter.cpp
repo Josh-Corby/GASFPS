@@ -59,7 +59,6 @@ void AGSPlayerCharacter::InitAbilityActorInfo()
 	AbilitySystemComponent = GSPlayerState->GetAbilitySystemComponent();
 	AbilitySystemComponent->InitAbilityActorInfo(GSPlayerState, this);
 	HealthSet = GSPlayerState->GetHealthSet();
-	CombatSet = GSPlayerState->GetCombatSet();
 }
 
 void AGSPlayerCharacter::SetupStartupPerspective()

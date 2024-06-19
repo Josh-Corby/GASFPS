@@ -48,7 +48,34 @@ void AGSWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 	DOREPLIFETIME_CONDITION(AGSWeapon, OwningCharacter, COND_OwnerOnly);
 }
 
-// Called when the game starts or when spawned
+void AGSWeapon::OnDropped_Implementation(FVector NewLocation)
+{
+
+	SetOwningCharacter(nullptr);
+
+	SetActorLocation(NewLocation);
+	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+	if (WeaponMesh1P)
+	{
+		WeaponMesh1P->AttachToComponent(CollisionComponent, FAttachmentTransformRules::SnapToTargetIncludingScale);
+		WeaponMesh1P->SetVisibility(false, true);
+	}
+
+	if (WeaponMesh3P)
+	{
+		WeaponMesh3P->AttachToComponent(CollisionComponent, FAttachmentTransformRules::SnapToTargetIncludingScale);
+		WeaponMesh3P->SetRelativeLocation(WeaponMesh3PPickupRelativeLocation);
+		WeaponMesh3P->CastShadow = true;
+		WeaponMesh3P->SetVisibility(true, true);
+	}
+}
+
+bool AGSWeapon::OnDropped_Validate(FVector NewLocation)
+{
+	return true;
+}
+
 void AGSWeapon::BeginPlay()
 {
 	if (!OwningCharacter && bSpawnWithCollision)

@@ -25,7 +25,6 @@ public:
 
 	UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	UGSHealthSet* GetHealthSet() const { return HealthSet; }
-	UGSCombatSet* GetCombatSet() const { return CombatSet; }
 
 protected:
 
@@ -36,7 +35,4 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UGSHealthSet> HealthSet;
-
-	UPROPERTY()
-	TObjectPtr<UGSCombatSet> CombatSet;
 };

@@ -3,7 +3,6 @@
 
 #include "Character/GSAICharacter.h"
 
-#include "AbilitySystem/Attributes/GSCombatSet.h"
 #include "AbilitySystem/Attributes/GSHealthSet.h"
 #include "AI/GSAIController.h"
 #include "GSGameplayTags.h"
@@ -20,7 +19,6 @@ AGSAICharacter::AGSAICharacter()
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 
 	HealthSet = CreateDefaultSubobject<UGSHealthSet>("HealthSet");
-	CombatSet = CreateDefaultSubobject<UGSCombatSet>("CombatSet");
 }
 
 void AGSAICharacter::PossessedBy(AController* NewController)
@@ -33,9 +31,11 @@ void AGSAICharacter::PossessedBy(AController* NewController)
 	}
 
 	GSAIController = Cast<AGSAIController>(NewController);
-
-	GSAIController->GetBlackboardComponent()->InitializeBlackboard(*BehaviorTree->BlackboardAsset);
-	GSAIController->RunBehaviorTree(BehaviorTree);
+	if (BehaviorTree)
+	{
+		GSAIController->GetBlackboardComponent()->InitializeBlackboard(*BehaviorTree->BlackboardAsset);
+		GSAIController->RunBehaviorTree(BehaviorTree);
+	}
 }
 
 

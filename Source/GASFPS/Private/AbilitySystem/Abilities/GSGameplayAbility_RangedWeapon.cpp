@@ -156,7 +156,7 @@ void UGSGameplayAbility_RangedWeapon::PerformLocalTargeting(OUT TArray<FHitResul
 	{
 		FRangedWeaponFiringInput InputData;
 		const FVector AvatarLocation = AvatarPawn->GetActorLocation();
-		FVector TraceStart(AvatarLocation.X, AvatarLocation.Y + 50, AvatarLocation.Z);
+		FVector TraceStart(AvatarLocation.X, AvatarLocation.Y, AvatarLocation.Z);
 
 		FRotator ViewRot = TraceStart.Rotation();
 		FVector ViewStart = TraceStart;
@@ -164,6 +164,10 @@ void UGSGameplayAbility_RangedWeapon::PerformLocalTargeting(OUT TArray<FHitResul
 		if (APlayerController* PC = Cast<APlayerController>(GetAvatarActorFromActorInfo()->GetInstigatorController()))
 		{		
 			PC->GetPlayerViewPoint(ViewStart, ViewRot);
+		}
+		else
+		{
+			ViewRot = AvatarPawn->GetActorForwardVector().Rotation();
 		}
 
 		const FVector ViewDir = ViewRot.Vector();
@@ -173,7 +177,7 @@ void UGSGameplayAbility_RangedWeapon::PerformLocalTargeting(OUT TArray<FHitResul
 		InputData.StartTrace = ViewStart;
 		InputData.EndAim = ViewEnd;
 
-		//DrawDebugLine(GetWorld(), ViewStart, ViewEnd, FColor::Yellow, false, 10.f, 0, 10.f);
+		DrawDebugLine(GetWorld(), ViewStart, ViewEnd, FColor::Yellow, false, 10.f, 0, 10.f);
 
 		WeaponTrace(InputData, OutHits);
 	}

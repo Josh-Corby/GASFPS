@@ -17,7 +17,11 @@ FGameplayEffectContextHandle UGSAbilitySystemLibrary::ApplyDamageEffect(const FD
 	UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(SpecHandle, Params.DamageType, Params.BaseDamage);
 	UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(SpecHandle, FGSGameplayTags::Get().Debuff_Duration, Params.DebuffDuration);
 
-	Params.TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+	if (Params.TargetASC)
+	{
+		Params.TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+	}
+
 	return ContextHandle;
 }
 
