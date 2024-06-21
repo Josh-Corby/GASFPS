@@ -75,13 +75,14 @@ void UGSGameplayAbility::TryActivateAbilityOnSpawn(const FGameplayAbilityActorIn
 			const bool bIsLocalExecution = (NetExecutionPolicy == EGameplayAbilityNetExecutionPolicy::LocalPredicted) || (NetExecutionPolicy == EGameplayAbilityNetExecutionPolicy::LocalOnly);
 			const bool bIsServerExecution = (NetExecutionPolicy == EGameplayAbilityNetExecutionPolicy::ServerOnly) || (NetExecutionPolicy == EGameplayAbilityNetExecutionPolicy::ServerInitiated);
 
-			const bool bClientShouldActivate = ActorInfo->IsLocallyControlled() && bIsLocalExecution;
+			ASC->TryActivateAbility(Spec.Handle);
+			/*const bool bClientShouldActivate = ActorInfo->IsLocallyControlled() && bIsLocalExecution;
 			const bool bServerShouldActivate = ActorInfo->IsNetAuthority() && bIsServerExecution;
 
 			if (bClientShouldActivate || bServerShouldActivate)
 			{
 				ASC->TryActivateAbility(Spec.Handle);
-			}
+			}*/
 		}
 	}
 }
@@ -98,6 +99,12 @@ FDamageEffectParams UGSGameplayAbility::MakeDamageEffectParamsFromClassDefaults(
 	Params.DebuffDuration = DebuffDuration;
 
 	return Params;
+}
+
+bool UGSGameplayAbility::IsInputPressed() const
+{
+	FGameplayAbilitySpec* Spec = GetCurrentAbilitySpec();
+	return Spec && Spec->InputPressed;
 }
 
 bool UGSGameplayAbility::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const

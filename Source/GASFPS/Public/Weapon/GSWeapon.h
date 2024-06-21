@@ -21,7 +21,7 @@ public:
 	
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	void SetOwningCharacter(AGSCharacterBase* InOwningCharacter);
+	void SetOwningActor(AActor* InOwningActor);
 	virtual void OnEquipped();
 
 	virtual void Equip();
@@ -29,7 +29,7 @@ public:
 
 	virtual void NotifyActorBeginOverlap(class AActor* Other) override;
 
-	const TArray<const UGSAbilitySet*> GetAbilitiesToGrant() const { return AbilitySetsToGrant; }
+	TArray<UGSAbilitySet*> GetAbilitiesToGrant() const { return AbilitySetsToGrant; }
 
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	virtual USkeletalMeshComponent* GetWeaponMesh1P() const { return WeaponMesh1P; }
@@ -59,7 +59,7 @@ protected:
 	TObjectPtr<USkeletalMeshComponent> WeaponMesh3P;
 
 	UPROPERTY(BlueprintReadOnly, Replicated)
-	TObjectPtr<AGSCharacterBase> OwningCharacter;
+	TObjectPtr<AActor> OwningActor;
 	
 	UPROPERTY(EditDefaultsOnly);
 	FVector WeaponMesh1PEquippedRelativeLocation;
@@ -70,8 +70,8 @@ protected:
 	UPROPERTY(EditDefaultsOnly);
 	FVector WeaponMesh3PPickupRelativeLocation;
 
-	virtual void PickUpOnTouch(AGSCharacterBase* InCharacter);
+	virtual void PickUpOnTouch(AActor* InActor);
 
 	UPROPERTY(EditDefaultsOnly, Category = "Abilities")
-	TArray<TObjectPtr<const UGSAbilitySet>> AbilitySetsToGrant;
+	TArray<TObjectPtr<UGSAbilitySet>> AbilitySetsToGrant;
 };

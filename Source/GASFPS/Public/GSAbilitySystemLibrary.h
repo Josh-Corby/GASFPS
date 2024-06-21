@@ -23,6 +23,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "GSAbilitySystemLibrary")
 	static FGameplayEffectContextHandle ApplyDamageEffect(const FDamageEffectParams& Params);
 
+	UFUNCTION(BlueprintCallable, Category = "GSAbilitySystemLibrary|GameplayMechanics")
+	static void GetLivePlayersWithinRadius(const UObject* WorldContextObject, TArray<AActor*>& OutOverlappingActors,
+		const TArray<AActor*>& ActorsToIgnore, float Radius, const FVector& SphereOrigin);
+
+
 	// Effect Context Getters
 
 	UFUNCTION(BlueprintPure, Category = "GSAbilitySystemLibrary|GameplayEffects")
@@ -45,4 +50,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "GSAbilitySystemLibrary|GameplayEffects")
 	static void SetDebuffDuration(UPARAM(ref) FGameplayEffectContextHandle& EffectContextHandle, float InDebuffDuration);
 
+	UFUNCTION(BlueprintCallable, Category = "GSAbilitySystemLibrary|TargetData")
+	static void ClearTargetData(UPARAM(ref) FGameplayAbilityTargetDataHandle& TargetData);
 };

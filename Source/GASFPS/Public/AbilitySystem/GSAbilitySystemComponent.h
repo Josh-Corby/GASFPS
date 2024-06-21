@@ -7,6 +7,7 @@
 #include "GSAbilitySystemComponent.generated.h"
 
 class UGSAbilitySet;
+class USkeletalMeshComponent;
 
 /**
  * 
@@ -21,9 +22,9 @@ public:
 	void AbilityInputTagPressed(const FGameplayTag& InputTag);
 	void AbilityInputTagReleased(const FGameplayTag& InputTag);
 
-	void AddAbilities(AActor* AbilityOwner, const TArray<const UGSAbilitySet*> AbilitiesToGive);
+	void AddAbilities(AActor* AbilityOwner, const TArray<UGSAbilitySet*>& AbilitiesToGive);
 
-	virtual float PlayMontageForMesh(UGameplayAbility* AnimatingAbility, class USkeletalMeshComponent* InMesh, FGameplayAbilityActivationInfo ActivationInfo, UAnimMontage* NewAnimMontage, float InPlayRate, FName StartSectionName = NAME_None, float InStartTimeSeconds = 0.f, bool bReplicateMontage = true);
+	virtual float PlayMontageForMesh(UGameplayAbility* AnimatingAbility, USkeletalMeshComponent* InMesh, FGameplayAbilityActivationInfo ActivationInfo, UAnimMontage* NewAnimMontage, float InPlayRate, FName StartSectionName = NAME_None, float InStartTimeSeconds = 0.f, bool bReplicateMontage = true);
 
 	// Called when a prediction key that played a montage is rejected
 	void OnPredictiveMontageRejectedForMesh(USkeletalMeshComponent* InMesh, UAnimMontage* PredictiveMontage);

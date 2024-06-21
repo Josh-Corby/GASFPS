@@ -22,7 +22,10 @@ public:
 
 	// Only called on server.
 	virtual void PossessedBy(AController* NewController) override;
-	virtual USkeletalMeshComponent* GetFirstPersonMesh() const override;
+
+	// Combat Interface
+	virtual USkeletalMeshComponent* GetFirstPersonMesh_Implementation() const override { return FirstPersonMesh; }
+	// End Combat Interface
 
 protected:
 

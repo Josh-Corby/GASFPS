@@ -36,6 +36,7 @@ void AGSAICharacter::PossessedBy(AController* NewController)
 		GSAIController->GetBlackboardComponent()->InitializeBlackboard(*BehaviorTree->BlackboardAsset);
 		GSAIController->RunBehaviorTree(BehaviorTree);
 	}
+
 }
 
 
@@ -45,11 +46,7 @@ void AGSAICharacter::BeginPlay()
 
 	InitAbilityActorInfo();
 
-	if (AbilitySystemComponent)
-	{
-		AbilitySystemComponent->RegisterGameplayTagEvent(FGSGameplayTags::Get().Debuff_Stun, EGameplayTagEventType::NewOrRemoved).AddUObject(
-			this, &AGSAICharacter::StunTagChanged);
-	}
+	HealthSet->OnOutOfHealth.AddUObject(this, &AGSAICharacter::HealthDepleted);
 }
 
 void AGSAICharacter::StunTagChanged(const FGameplayTag CallbackTag, int32 NewCount)
@@ -65,4 +62,13 @@ void AGSAICharacter::StunTagChanged(const FGameplayTag CallbackTag, int32 NewCou
 void AGSAICharacter::InitAbilityActorInfo()
 {
 	AbilitySystemComponent->InitAbilityActorInfo(this, this);
+	
+	AbilitySystemComponent->RegisterGameplayTagEvent(FGSGameplayTags::Get().Debuff_Stun, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &AGSAICharacter::StunTagChanged);
+	AbilitySystemComponent->RegisterGameplayTagEvent(FGSGameplayTags::Get().State_KnockedDown, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &AGSAICharacter::KnockDownTagChanged);
+
+	if (HasAuthority())
+	{
+		InitializeAttributes();
+		AddStartupAbilities();
+	}
 }

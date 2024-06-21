@@ -8,6 +8,8 @@
 #include "AbilitySystem/GSAbilitySystemComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "AbilitySystem/GSAbilitySet.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "Interfaces/GSInventoryInterface.h"
 #include "GASFPS/GASFPS.h"
 
 // Sets default values
@@ -45,13 +47,12 @@ void AGSWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME_CONDITION(AGSWeapon, OwningCharacter, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(AGSWeapon, OwningActor, COND_OwnerOnly);
 }
 
 void AGSWeapon::OnDropped_Implementation(FVector NewLocation)
 {
-
-	SetOwningCharacter(nullptr);
+	SetOwningActor(nullptr);
 
 	SetActorLocation(NewLocation);
 	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
@@ -78,7 +79,7 @@ bool AGSWeapon::OnDropped_Validate(FVector NewLocation)
 
 void AGSWeapon::BeginPlay()
 {
-	if (!OwningCharacter && bSpawnWithCollision)
+	if (!OwningActor && bSpawnWithCollision)
 	{
 		CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	}
@@ -86,40 +87,42 @@ void AGSWeapon::BeginPlay()
 	Super::BeginPlay();
 }
 
-void AGSWeapon::PickUpOnTouch(AGSCharacterBase* InCharacter)
+void AGSWeapon::PickUpOnTouch(AActor* InActor)
 {
-	if (InCharacter->GetAbilitySystemComponent())
+	if (UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(InActor))
 	{
 		OnEquipped();
-		if (InCharacter->AddWeaponToInventory(this, true) && OwningCharacter->IsInFirstPersonPerspective())
+		if (InActor->Implements<UGSInventoryInterface>())
 		{
-			WeaponMesh3P->CastShadow = false;
-			WeaponMesh3P->SetVisibility(true, true);
-			WeaponMesh3P->SetVisibility(false, true);
+			if (IGSInventoryInterface::Execute_AddWeaponToInventory(InActor, this, true) /*&& OwningActor->IsInFirstPersonPerspective()*/)
+			{
+				WeaponMesh3P->CastShadow = false;
+				WeaponMesh3P->SetVisibility(true, true);
+				WeaponMesh3P->SetVisibility(false, true);
+			}
 		}
 	}
 }
 
-void AGSWeapon::SetOwningCharacter(AGSCharacterBase* InOwningCharacter)
+void AGSWeapon::SetOwningActor(AActor* InOwningActor)
 {
-	OwningCharacter = InOwningCharacter;
-	if (OwningCharacter)
-	{
-		SetOwner(OwningCharacter);
-		AttachToComponent(OwningCharacter->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
-		CollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-		if (OwningCharacter->GetCurrentWeapon() != this)
-		{
-			WeaponMesh3P->bCastInsetShadow = false;
-			WeaponMesh3P->SetVisibility(true, true);
-			WeaponMesh3P->SetVisibility(false, true);
-		}
-	}
-	else
+	OwningActor = InOwningActor;
+	if (!OwningActor || !OwningActor->Implements<UGSInventoryInterface>())
 	{
 		SetOwner(nullptr);
 		DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		return;
+	}
+
+	SetOwner(OwningActor);
+	AttachToComponent(OwningActor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	if (IGSInventoryInterface::Execute_GetCurrentWeapon(OwningActor) != this)
+	{
+		WeaponMesh3P->bCastInsetShadow = false;
+		WeaponMesh3P->SetVisibility(true, true);
+		WeaponMesh3P->SetVisibility(false, true);
 	}
 }
 
@@ -129,22 +132,22 @@ void AGSWeapon::OnEquipped()
 
 void AGSWeapon::Equip()
 {
-	if (!OwningCharacter)
+	if (!OwningActor || !OwningActor->Implements<UGSInventoryInterface>())
 	{
 		return;
 	}
 
-	const FName AttachPoint = OwningCharacter->GetWeaponAttachPoint();
+	const FName AttachPoint = IGSInventoryInterface::Execute_GetWeaponAttachPoint(OwningActor);
 
 	if (WeaponMesh1P)
 	{
-		if (USkeletalMeshComponent* FirstPersonMesh = OwningCharacter->GetFirstPersonMesh())
+		if (USkeletalMeshComponent* FirstPersonMesh = IGSInventoryInterface::Execute_GetFirstPersonMesh(OwningActor))
 		{
 			WeaponMesh1P->AttachToComponent(FirstPersonMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, AttachPoint);
 			WeaponMesh1P->SetRelativeLocation(WeaponMesh1PEquippedRelativeLocation);
 			WeaponMesh1P->SetRelativeRotation(FRotator(0.f, 0.f, -90.f));
 
-			if (OwningCharacter->IsInFirstPersonPerspective())
+			if (IGSInventoryInterface::Execute_IsInFirstPersonPerspective(OwningActor))
 			{
 				WeaponMesh1P->SetVisibility(true, true);
 			}
@@ -157,13 +160,16 @@ void AGSWeapon::Equip()
 
 	if (WeaponMesh3P)
 	{
-		WeaponMesh3P->AttachToComponent(OwningCharacter->GetThirdPersonMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, AttachPoint);
-		WeaponMesh3P->SetRelativeLocation(WeaponMesh3PEquippedRelativeLocation);
-		WeaponMesh3P->SetRelativeRotation(FRotator(0, 0, -90.0f));
-		WeaponMesh3P->CastShadow = true;
-		WeaponMesh3P->bCastHiddenShadow = true;
+		if (USkeletalMeshComponent* ThirdPersonMesh = IGSInventoryInterface::Execute_GetThirdPersonMesh(OwningActor))
+		{
+			WeaponMesh3P->AttachToComponent(ThirdPersonMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, AttachPoint);
+			WeaponMesh3P->SetRelativeLocation(WeaponMesh3PEquippedRelativeLocation);
+			WeaponMesh3P->SetRelativeRotation(FRotator(0, 0, -90.0f));
+			WeaponMesh3P->CastShadow = true;
+			WeaponMesh3P->bCastHiddenShadow = true;
+		}	
 
-		if (OwningCharacter->IsInFirstPersonPerspective())
+		if (IGSInventoryInterface::Execute_IsInFirstPersonPerspective(OwningActor))
 		{
 			WeaponMesh3P->SetVisibility(true, true);
 			WeaponMesh3P->SetVisibility(false, true);
@@ -177,7 +183,7 @@ void AGSWeapon::Equip()
 
 void AGSWeapon::UnEquip()
 {
-	if (!OwningCharacter)
+	if (!OwningActor)
 	{
 		return;
 	}
@@ -194,9 +200,8 @@ void AGSWeapon::UnEquip()
 
 void AGSWeapon::NotifyActorBeginOverlap(AActor* Other)
 {
-	AGSCharacterBase* OverlappingCharacter = Cast<AGSCharacterBase>(Other);
-	if (GetLocalRole() == ROLE_Authority && OverlappingCharacter != nullptr)
+	if (GetLocalRole() == ROLE_Authority && Other->Implements<UGSInventoryInterface>())
 	{
-		PickUpOnTouch(OverlappingCharacter);
+		PickUpOnTouch(Other);
 	}
 }

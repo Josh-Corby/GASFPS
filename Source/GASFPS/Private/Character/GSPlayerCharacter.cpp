@@ -4,9 +4,11 @@
 #include "Character/GSPlayerCharacter.h"
 #include "Camera/CameraComponent.h"
 #include "Player/GSPlayerState.h"
+#include "AbilitySystem/Attributes/GSHealthSet.h"
 #include "Player/GSPlayerController.h"
 #include "AbilitySystemComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "GSGameplayTags.h"
 
 AGSPlayerCharacter::AGSPlayerCharacter()
 	: Super()
@@ -30,12 +32,11 @@ void AGSPlayerCharacter::PossessedBy(AController* NewController)
 	Super::PossessedBy(NewController);
 
 	InitAbilityActorInfo();
-	SetupStartupPerspective();
-}
+	InitializeAttributes();
+	AddStartupAbilities();
 
-USkeletalMeshComponent* AGSPlayerCharacter::GetFirstPersonMesh() const
-{
-	return FirstPersonMesh;
+	SetupStartupPerspective();
+	HealthSet->OnOutOfHealth.AddUObject(this, &AGSPlayerCharacter::HealthDepleted);
 }
 
 void AGSPlayerCharacter::OnRep_PlayerState()
@@ -58,6 +59,8 @@ void AGSPlayerCharacter::InitAbilityActorInfo()
 	check(GSPlayerState);
 	AbilitySystemComponent = GSPlayerState->GetAbilitySystemComponent();
 	AbilitySystemComponent->InitAbilityActorInfo(GSPlayerState, this);
+	AbilitySystemComponent->RegisterGameplayTagEvent(FGSGameplayTags::Get().State_KnockedDown, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &AGSPlayerCharacter::KnockDownTagChanged);
+
 	HealthSet = GSPlayerState->GetHealthSet();
 }
 

@@ -3,7 +3,7 @@
 
 #include "AbilitySystem/Abilities/GSGameplayAbility_FromWeapon.h"
 
-#include "Character/GSCharacterBase.h"
+#include "Interfaces/GSInventoryInterface.h"
 #include "Weapon/GSRangedWeapon.h"
 
 UGSGameplayAbility_FromWeapon::UGSGameplayAbility_FromWeapon(const FObjectInitializer& ObjectInitializer)
@@ -13,10 +13,15 @@ UGSGameplayAbility_FromWeapon::UGSGameplayAbility_FromWeapon(const FObjectInitia
 
 AGSRangedWeapon* UGSGameplayAbility_FromWeapon::GetAssociatedWeapon() const
 {
-	AGSWeapon* Weapon = Cast<AGSCharacterBase>(GetAvatarActorFromActorInfo())->GetCurrentWeapon();
-	if (AGSRangedWeapon* RangedWeapon = Cast<AGSRangedWeapon>(Weapon))
+	const AActor* OwningActor = GetAvatarActorFromActorInfo();
+	if (OwningActor->Implements<UGSInventoryInterface>())
 	{
-		return RangedWeapon;
+		AGSWeapon* Weapon = IGSInventoryInterface::Execute_GetCurrentWeapon(OwningActor);
+
+		if (AGSRangedWeapon* RangedWeapon = Cast<AGSRangedWeapon>(Weapon))
+		{
+			return RangedWeapon;
+		}
 	}
 
 	return nullptr;

@@ -55,13 +55,23 @@ void UGSExecCalc_Damage::Execute_Implementation(const FGameplayEffectCustomExecu
 	{
 		const FGameplayTag DamageTypeTag = Pair.Key;
 
-		float DamageTypeValue = Spec.GetSetByCallerMagnitude(DamageTypeTag, false);
+		float DamageTypeValue;
+
+		if (DamageTypeTag.MatchesTagExact(GameplayTags.Damage_InstaKill))
+		{
+			DamageTypeValue = 1000;
+		}
+		else
+		{
+			DamageTypeValue = Spec.GetSetByCallerMagnitude(DamageTypeTag, false);
+		}
+		
 		if (DamageTypeValue <= 0)
 		{
 			continue;
 		}
-		Damage += DamageTypeValue;
 
+		Damage += DamageTypeValue;
 	}
 
 	if (Damage > 0.0f)

@@ -7,8 +7,10 @@
 #include "Net/UnrealNetwork.h"
 #include "AbilitySystem/Attributes/GSHealthSet.h"
 #include "Weapon/GSWeapon.h"
+#include "GSGameplayTags.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Game/GSGameMode.h"
 #include "Weapon/GSRangedWeapon.h"
 
 // Sets default values
@@ -38,14 +40,6 @@ void AGSCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (HealthSet)
-	{
-		HealthSet->OnOutOfHealth.AddLambda([this](AActor* /*EffectInstigator*/, AActor* /*EffectCauser*/, const FGameplayEffectSpec* /*EffectSpec*/, float /*EffectMagnitude*/, float /*OldValue*/, float /*NewValue*/)
-		{
-			Die();
-		});
-	}
-
 	GetWorldTimerManager().SetTimerForNextTick(this, &AGSCharacterBase::SpawnDefaultInventory);
 }
 
@@ -53,12 +47,7 @@ void AGSCharacterBase::InitAbilityActorInfo()
 {
 }
 
-USkeletalMeshComponent* AGSCharacterBase::GetFirstPersonMesh() const
-{
-	return nullptr;
-}
-
-bool AGSCharacterBase::AddWeaponToInventory(AGSWeapon* NewWeapon, bool bEquipWeapon)
+bool AGSCharacterBase::AddWeaponToInventory_Implementation(AGSWeapon* NewWeapon, bool bEquipWeapon)
 {
 	if (DoesWeaponExistInInventory(NewWeapon))
 	{
@@ -68,7 +57,7 @@ bool AGSCharacterBase::AddWeaponToInventory(AGSWeapon* NewWeapon, bool bEquipWea
 	}
 
 	Inventory.Weapons.Add(NewWeapon);
-	NewWeapon->SetOwningCharacter(this);
+	NewWeapon->SetOwningActor(this);
 
 	AddAbilities(NewWeapon, NewWeapon->GetAbilitiesToGrant());
 	if (bEquipWeapon)
@@ -78,6 +67,66 @@ bool AGSCharacterBase::AddWeaponToInventory(AGSWeapon* NewWeapon, bool bEquipWea
 	}
 
 	return true;
+}
+
+bool AGSCharacterBase::IsAvailableForInteraction_Implementation(AActor* InteractionActor) const
+{
+	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown))
+	{
+		return true;
+	}
+
+	return IGSInteractableInterface::IsAvailableForInteraction_Implementation(InteractionActor);
+}
+
+float AGSCharacterBase::GetInteractionDuration_Implementation(AActor* InteractionActor) const
+{
+	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown))
+	{
+		return ReviveDuration;
+	}
+
+	return IGSInteractableInterface::GetInteractionDuration_Implementation(InteractionActor);
+}
+
+void AGSCharacterBase::PreInteract_Implementation(AActor* InteractingActor, AActor* InteractionActor)
+{
+	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown) && HasAuthority())
+	{
+		AbilitySystemComponent->TryActivateAbilitiesByTag(FGameplayTagContainer(FGSGameplayTags::Get().Abilities_Revive));
+	}
+}
+
+void AGSCharacterBase::PostInteract_Implementation(AActor* InteractingActor, AActor* InteractionActor)
+{
+	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown) && HasAuthority())
+	{
+		FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+		EffectContext.AddSourceObject(this);
+		FGameplayEffectSpecHandle NewHandle = AbilitySystemComponent->MakeOutgoingSpec(ReviveEffect, 1.f, EffectContext);
+		AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*NewHandle.Data.Get());
+	}
+}
+
+void AGSCharacterBase::GetPreInteractSyncType_Implementation(bool& bShouldSync, EAbilityTaskNetSyncType& Type, AActor* InteractionActor) const
+{
+	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown))
+	{
+		bShouldSync = true;
+		Type = EAbilityTaskNetSyncType::OnlyClientWait;
+		return;
+	}
+
+	IGSInteractableInterface::GetPreInteractSyncType_Implementation(bShouldSync, Type, InteractionActor);
+}
+
+void AGSCharacterBase::CancelInteraction_Implementation(AActor* InteractionActor)
+{
+	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown) && HasAuthority())
+	{
+		FGameplayTagContainer CancelTags(FGSGameplayTags::Get().Abilities_Revive);
+		AbilitySystemComponent->CancelAbilities(&CancelTags);
+	}
 }
 
 bool AGSCharacterBase::RemoveWeaponFromInventory(AGSWeapon* WeaponToRemove)
@@ -103,11 +152,15 @@ void AGSCharacterBase::RemoveAllWeaponsFromInventory()
 		return;
 	}
 
+	float NumWeapons = Inventory.Weapons.Num();
+	if (NumWeapons == 0)
+	{
+		return;
+	}
+
 	UnEquipCurrentWeapon();
 
-
 	float radius = 50.0f;
-	float NumWeapons = Inventory.Weapons.Num();
 
 	if (NumWeapons > 1)
 	{
@@ -154,7 +207,17 @@ bool AGSCharacterBase::ServerEquipWeapon_Validate(AGSWeapon* NewWeapon)
 	return true;
 }
 
-void AGSCharacterBase::AddAbilities(AActor* AbilityOwner, const TArray<const UGSAbilitySet*> AbilitiesToGive) const
+float AGSCharacterBase::GetHealth() const
+{
+	return HealthSet->GetHealth();
+}
+
+FSimpleMulticastDelegate* AGSCharacterBase::GetTargetCancelInteractionDelegate(AActor* InteractionActor)
+{
+	return &InteractionCanceledDelegate;
+}
+
+void AGSCharacterBase::AddAbilities(AActor* AbilityOwner, const TArray<UGSAbilitySet*>& AbilitiesToGive) const
 {
 	UGSAbilitySystemComponent* GSASC = CastChecked<UGSAbilitySystemComponent>(GetAbilitySystemComponent());
 
@@ -164,6 +227,34 @@ void AGSCharacterBase::AddAbilities(AActor* AbilityOwner, const TArray<const UGS
 	}
 
 	GSASC->AddAbilities(AbilityOwner, AbilitiesToGive);
+}
+
+void AGSCharacterBase::InitializeAttributes()
+{
+	if (!IsValid(AbilitySystemComponent))
+	{
+		return;
+	}
+
+	if (!DefaultAttributes)
+	{
+		UE_LOG(LogTemp, Error, TEXT("%s() Missing DefaultAttributes for %s. Please fill in the character's Blueprint."), *FString(__FUNCTION__), *GetName());
+		return;
+	}
+
+	// Can run on Server and Client
+	FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+	EffectContext.AddSourceObject(this);
+	FGameplayEffectSpecHandle NewHandle = AbilitySystemComponent->MakeOutgoingSpec(DefaultAttributes, 1.f, EffectContext);
+	AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*NewHandle.Data.Get());
+}
+
+void AGSCharacterBase::PlayKnockDownEffects()
+{
+	if (DeathMontage)
+	{
+		PlayAnimMontage(DeathMontage);
+	}
 }
 
 UAbilitySystemComponent* AGSCharacterBase::GetAbilitySystemComponent() const
@@ -194,7 +285,7 @@ void AGSCharacterBase::SetCurrentWeapon(AGSWeapon* NewWeapon, AGSWeapon* LastWea
 	if (NewWeapon)
 	{
 		CurrentWeapon = NewWeapon;
-		CurrentWeapon->SetOwningCharacter(this);
+		CurrentWeapon->SetOwningActor(this);
 		CurrentWeapon->Equip();
 	}
 	else
@@ -262,13 +353,38 @@ bool AGSCharacterBase::ClientSyncCurrentWeapon_Validate(AGSWeapon* InWeapon)
 	return true;
 }
 
-void AGSCharacterBase::Die()
+void AGSCharacterBase::KnockDown()
 {
-	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	GetCharacterMovement()->GravityScale = 0;
-	GetCharacterMovement()->Velocity = FVector(0);
+	if (!HasAuthority())
+	{
+		return;
+	}
 
-	FinishDying();
+	if (IsValid(AbilitySystemComponent))
+	{
+		AbilitySystemComponent->CancelAllAbilities();
+
+		FGameplayEffectContextHandle ContextHandle = AbilitySystemComponent->MakeEffectContext();
+		ContextHandle.AddSourceObject(this);
+		const FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(KnockDownEffect, 1.f, ContextHandle);
+		AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+	}
+
+	GetCharacterMovement()->MaxWalkSpeed = 0.f;
+	HealthSet->FullHeal();
+}
+
+void AGSCharacterBase::KnockDownTagChanged(const FGameplayTag CallbackTag, int32 NewCount)
+{
+	if (!IsValid(this))
+	{
+		return;
+	}
+
+	if (NewCount > 0)
+	{
+		PlayKnockDownEffects();
+	}
 }
 
 void AGSCharacterBase::FinishDying()
@@ -279,6 +395,16 @@ void AGSCharacterBase::FinishDying()
 	}
 
 	RemoveAllWeaponsFromInventory();
+
+	if (AGSGameMode* GM = Cast<AGSGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		GM->PlayerDied(GetController());
+	}
+
+	if (IsValid(AbilitySystemComponent))
+	{
+		AbilitySystemComponent->CancelAllAbilities();
+	}
 
 	Destroy();
 }
@@ -300,11 +426,40 @@ void AGSCharacterBase::SpawnDefaultInventory()
 		}
 
 		AGSWeapon* NewWeapon = GetWorld()->SpawnActorDeferred<AGSWeapon>(DefaultInventoryWeaponClasses[i],
-			FTransform::Identity, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-			NewWeapon->bSpawnWithCollision = false;
-			NewWeapon->FinishSpawning(FTransform::Identity);
+		FTransform::Identity, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		NewWeapon->bSpawnWithCollision = false;
+		NewWeapon->FinishSpawning(FTransform::Identity);
 
-			bool bEquipFirstWeapon = i == 0;
-			AddWeaponToInventory(NewWeapon, bEquipFirstWeapon);
+		bool bEquipFirstWeapon = i == 0;
+		if (this->Implements<UGSInventoryInterface>())
+		{
+			IGSInventoryInterface::Execute_AddWeaponToInventory(this, NewWeapon, bEquipFirstWeapon);
+		}
+	}
+}
+
+void AGSCharacterBase::AddStartupAbilities()
+{
+	if (StartupAbilities.Num() == 0 || !HasAuthority())
+	{
+		return;
+	}
+
+	AddAbilities(this, StartupAbilities);
+}
+
+void AGSCharacterBase::HealthDepleted(AActor* EffectInstigator, AActor* EffectCauser, const FGameplayEffectSpec* EffectSpec, float EffectMagnitude, float OldValue, float NewValue)
+{
+	const FGSGameplayTags& GameplayTags = FGSGameplayTags::Get();
+	if (IsValid(this) && !IsAlive() && !AbilitySystemComponent->HasMatchingGameplayTag(GameplayTags.State_Dead))
+	{
+		if (!AbilitySystemComponent->HasMatchingGameplayTag(GameplayTags.State_KnockedDown))
+		{
+			KnockDown();
+		}
+		else
+		{
+			FinishDying();
+		}
 	}
 }

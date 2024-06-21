@@ -20,6 +20,11 @@ public:
 
 	AGSPlayerController();
 
+	UFUNCTION(Client, Reliable, WithValidation)
+	void ClientSetControlRotation(FRotator NewRotation);
+	void ClientSetControlRotation_Implementation(FRotator NewRotation);
+	bool ClientSetControlRotation_Validate(FRotator NewRotation);
+
 protected:
 
 	virtual void BeginPlay() override;

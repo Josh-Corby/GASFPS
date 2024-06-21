@@ -33,6 +33,9 @@ public:
 	UFUNCTION(BlueprintPure)
 	FDamageEffectParams MakeDamageEffectParamsFromClassDefaults(AActor* TargetActor = nullptr);
 
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	bool IsInputPressed() const;
+
 protected:
 
 	AController* GetControllerFromActorInfo() const;

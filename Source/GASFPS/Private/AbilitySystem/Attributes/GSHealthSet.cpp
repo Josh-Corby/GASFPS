@@ -9,10 +9,9 @@
 #include "GSGameplayTags.h"
 #include "GSAbilityTypes.h"
 #include "Net/UnrealNetwork.h"
+#include "GameFramework/Character.h"
 
 UGSHealthSet::UGSHealthSet()
-	: Health(100.0f)
-	, MaxHealth(100.0f)
 {
 	bOutOfHealth = false;
 	MaxHealthBeforeAttributeChange = 0.0f;
@@ -25,6 +24,11 @@ void UGSHealthSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 
 	DOREPLIFETIME_CONDITION_NOTIFY(UGSHealthSet, Health, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UGSHealthSet, MaxHealth, COND_None, REPNOTIFY_Always);
+}
+
+void UGSHealthSet::FullHeal()
+{
+	SetHealth(GetMaxHealth());
 }
 
 void UGSHealthSet::OnRep_Health(const FGameplayAttributeData& OldValue)
@@ -129,6 +133,7 @@ void UGSHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 	{
 		// Clamp and fall into out of health handling below
 		SetHealth(FMath::Clamp(GetHealth(), 0, GetMaxHealth()));
+		UE_LOG(LogTemp, Error, TEXT("%f"), GetHealth());
 	}
 	else if (Data.EvaluatedData.Attribute == GetMaxHealthAttribute())
 	{
@@ -212,6 +217,7 @@ void UGSHealthSet::HandleIncomingDamage(FEffectProperties& Props)
 	{
 		const float NewHealth = GetHealth() - LocalIncomingDamage;
 		SetHealth(FMath::Clamp(NewHealth, 0.f, GetMaxHealth()));
+		UE_LOG(LogTemp, Error, TEXT("%f"), GetHealth());
 
 		if (UGSAbilitySystemLibrary::IsSuccessfulDebuff(Props.EffectContextHandle))
 		{
@@ -228,6 +234,12 @@ void UGSHealthSet::Debuff(FEffectProperties& Props)
 
 	const FGameplayTag DamageType = UGSAbilitySystemLibrary::GetDamageType(Props.EffectContextHandle);
 	const float DebuffDuration = UGSAbilitySystemLibrary::GetDebuffDuration(Props.EffectContextHandle);
+	FGameplayTag DebuffTag = GameplayTags.DamageTypesToDebuffs[DamageType];
+
+	if (DebuffTag.MatchesTagExact(GameplayTags.Debuff_None))
+	{
+		return;
+	}
 
 	const FString DebuffName = FString::Printf(TEXT("Dynamic Debuff_%s"), *DamageType.ToString());
 	UGameplayEffect* Effect = NewObject<UGameplayEffect>(GetTransientPackage(), FName(DebuffName));
@@ -235,7 +247,6 @@ void UGSHealthSet::Debuff(FEffectProperties& Props)
 	Effect->DurationPolicy = EGameplayEffectDurationType::HasDuration;
 	Effect->DurationMagnitude = FScalableFloat(DebuffDuration);
 
-	FGameplayTag DebuffTag = GameplayTags.DamageTypesToDebuffs[DamageType];
 	Effect->CachedGrantedTags.AddTag(DebuffTag);
 
 	Effect->StackingType = EGameplayEffectStackingType::AggregateBySource;

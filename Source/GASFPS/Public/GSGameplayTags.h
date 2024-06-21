@@ -17,6 +17,7 @@ public:
 
 	FGameplayTag InputTag_Move;
 	FGameplayTag InputTag_Look;
+	FGameplayTag InputTag_Interact;
 
 	FGameplayTag Debuff_Duration;
 	FGameplayTag Debuff_None;
@@ -24,8 +25,20 @@ public:
 
 	FGameplayTag Damage_Normal;
 	FGameplayTag Damage_Electric;
+	FGameplayTag Damage_InstaKill;
 
 	FGameplayTag Effects_Stun;
+
+	FGameplayTag State_Dead;
+	FGameplayTag State_KnockedDown;
+	FGameplayTag State_Interacting_Added;
+	FGameplayTag State_Interacting_Removed;
+
+	FGameplayTag Ability_Interaction_Start;
+	FGameplayTag Ability_Interaction_End;
+	FGameplayTag Ability_Interaction_Block;
+
+	FGameplayTag Abilities_Revive;
 
 	TMap<FGameplayTag, FGameplayTag> DamageTypesToDebuffs;
 

@@ -101,3 +101,13 @@ void AGSPlayerController::Input_Look(const FInputActionValue& Value)
 		ControlledPawn->AddControllerPitchInput(InputValue.Y);
 	}
 }
+
+void AGSPlayerController::ClientSetControlRotation_Implementation(FRotator NewRotation)
+{
+	SetControlRotation(NewRotation);
+}
+
+bool AGSPlayerController::ClientSetControlRotation_Validate(FRotator NewRotation)
+{
+	return true;
+}

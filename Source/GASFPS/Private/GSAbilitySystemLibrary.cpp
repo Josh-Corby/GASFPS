@@ -4,6 +4,7 @@
 #include "GSAbilitySystemLibrary.h"
 #include "GSAbilityTypes.h"
 #include "AbilitySystemComponent.h"
+#include "Interfaces/GSCombatInterface.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "GSGameplayTags.h"
 
@@ -23,6 +24,25 @@ FGameplayEffectContextHandle UGSAbilitySystemLibrary::ApplyDamageEffect(const FD
 	}
 
 	return ContextHandle;
+}
+
+void UGSAbilitySystemLibrary::GetLivePlayersWithinRadius(const UObject* WorldContextObject, TArray<AActor*>& OutOverlappingActors, const TArray<AActor*>& ActorsToIgnore, float Radius, const FVector& SphereOrigin)
+{
+	FCollisionQueryParams SphereParams;
+	SphereParams.AddIgnoredActors(ActorsToIgnore);
+
+	TArray<FOverlapResult> Overlaps;
+	if (const UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
+	{
+		World->OverlapMultiByObjectType(Overlaps, SphereOrigin, FQuat::Identity, FCollisionObjectQueryParams(FCollisionObjectQueryParams::InitType::AllDynamicObjects), FCollisionShape::MakeSphere(Radius), SphereParams);
+		for (FOverlapResult& Overlap : Overlaps)
+		{
+			if (Overlap.GetActor()->Implements<UGSCombatInterface>()/* && !ICombatInterface::Execute_IsDead(Overlap.GetActor())*/)
+			{
+				OutOverlappingActors.AddUnique(Overlap.GetActor());
+			}
+		}
+	}
 }
 
 bool UGSAbilitySystemLibrary::IsSuccessfulDebuff(const FGameplayEffectContextHandle& EffectContextHandle)
@@ -79,4 +99,9 @@ void UGSAbilitySystemLibrary::SetDebuffDuration(UPARAM(ref)FGameplayEffectContex
 	{
 		GSEffectContext->SetDebuffDuration(InDebuffDuration);
 	}
+}
+
+void UGSAbilitySystemLibrary::ClearTargetData(UPARAM(ref)FGameplayAbilityTargetDataHandle& TargetData)
+{
+	TargetData.Clear();
 }

@@ -42,7 +42,7 @@ void UGSAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& Inpu
 	}
 }
 
-void UGSAbilitySystemComponent::AddAbilities(AActor* AbilityOwner,const TArray<const UGSAbilitySet*> AbilitiesToGive)
+void UGSAbilitySystemComponent::AddAbilities(AActor* AbilityOwner, const TArray<UGSAbilitySet*>& AbilitiesToGive)
 {
 	if (AbilityOwner == nullptr)
 	{
