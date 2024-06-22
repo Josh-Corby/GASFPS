@@ -51,6 +51,11 @@ void AGSAICharacter::BeginPlay()
 
 void AGSAICharacter::StunTagChanged(const FGameplayTag CallbackTag, int32 NewCount)
 {
+	if (!HasAuthority())
+	{
+		return;
+	}
+
 	bStunned = NewCount > 0;
 	GetCharacterMovement()->MaxWalkSpeed = bStunned ? 0.f : BaseWalkSpeed;
 	if (GSAIController && GSAIController->GetBlackboardComponent())
