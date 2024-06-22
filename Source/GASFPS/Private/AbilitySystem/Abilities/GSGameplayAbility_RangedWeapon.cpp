@@ -177,7 +177,7 @@ void UGSGameplayAbility_RangedWeapon::PerformLocalTargeting(OUT TArray<FHitResul
 		InputData.StartTrace = ViewStart;
 		InputData.EndAim = ViewEnd;
 
-		DrawDebugLine(GetWorld(), ViewStart, ViewEnd, FColor::Yellow, false, 10.f, 0, 1.f);
+		//DrawDebugLine(GetWorld(), ViewStart, ViewEnd, FColor::Yellow, false, 10.f, 0, 1.f);
 
 		WeaponTrace(InputData, OutHits);
 	}

@@ -249,7 +249,7 @@ void UGSHealthSet::Debuff(FEffectProperties& Props)
 
 	Effect->CachedGrantedTags.AddTag(DebuffTag);
 
-	Effect->StackingType = EGameplayEffectStackingType::AggregateBySource;
+	Effect->StackingType = EGameplayEffectStackingType::AggregateByTarget;
 	Effect->StackLimitCount = 1;
 
 	const int32 Idx = Effect->Modifiers.Num();
