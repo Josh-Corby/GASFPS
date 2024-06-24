@@ -10,6 +10,26 @@ FGSGameplayTags FGSGameplayTags::GameplayTags;;
 
 void FGSGameplayTags::InitializeNativeGameplayTags()
 {
+		GameplayTags.InitState_Spawned = UGameplayTagsManager::Get().AddNativeGameplayTag(
+			FName("InitState.Spawned"),
+			FString("1: Actor/component has initially spawned and can be extended")
+		);
+
+		GameplayTags.InitState_DataAvailable = UGameplayTagsManager::Get().AddNativeGameplayTag(
+			FName("InitState.DataAvailable"),
+			FString("2: All required data has been loaded/replicated and is ready for initialization")
+		);
+
+		GameplayTags.InitState_DataInitialized = UGameplayTagsManager::Get().AddNativeGameplayTag(
+			FName("InitState.DataInitialized"),
+			FString("3: The available data has been initialized for this actor/component, but it is not ready for full gameplay")
+		);
+
+		GameplayTags.InitState_GameplayReady = UGameplayTagsManager::Get().AddNativeGameplayTag(
+			FName("InitState.GameplayReady"),
+			FString("4: The actor/component is fully ready for active gameplayd")
+		);
+
 		GameplayTags.InputTag_Move = UGameplayTagsManager::Get().AddNativeGameplayTag(
 			FName("InputTag.Move"),
 			FString("Move Input.")

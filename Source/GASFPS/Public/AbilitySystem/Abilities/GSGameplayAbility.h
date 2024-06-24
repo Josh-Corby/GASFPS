@@ -36,6 +36,8 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	bool IsInputPressed() const;
 
+	EGSAbilityActivationPolicy GetActivationPolicy() const { return ActivationPolicy; }
+
 protected:
 
 	AController* GetControllerFromActorInfo() const;

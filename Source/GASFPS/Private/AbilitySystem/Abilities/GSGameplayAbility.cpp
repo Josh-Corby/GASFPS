@@ -75,14 +75,13 @@ void UGSGameplayAbility::TryActivateAbilityOnSpawn(const FGameplayAbilityActorIn
 			const bool bIsLocalExecution = (NetExecutionPolicy == EGameplayAbilityNetExecutionPolicy::LocalPredicted) || (NetExecutionPolicy == EGameplayAbilityNetExecutionPolicy::LocalOnly);
 			const bool bIsServerExecution = (NetExecutionPolicy == EGameplayAbilityNetExecutionPolicy::ServerOnly) || (NetExecutionPolicy == EGameplayAbilityNetExecutionPolicy::ServerInitiated);
 
-			ASC->TryActivateAbility(Spec.Handle);
-			/*const bool bClientShouldActivate = ActorInfo->IsLocallyControlled() && bIsLocalExecution;
+			const bool bClientShouldActivate = ActorInfo->IsLocallyControlled() && bIsLocalExecution;
 			const bool bServerShouldActivate = ActorInfo->IsNetAuthority() && bIsServerExecution;
 
 			if (bClientShouldActivate || bServerShouldActivate)
 			{
 				ASC->TryActivateAbility(Spec.Handle);
-			}*/
+			}
 		}
 	}
 }

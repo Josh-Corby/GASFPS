@@ -2,7 +2,6 @@
 
 
 #include "AbilitySystem/Costs/GSAbilityCost_ItemTagStack.h"
-#include "Weapon/GSRangedWeapon.h"
 #include "AbilitySystem/Abilities/GSGameplayAbility.h"
 
 UGSAbilityCost_ItemTagStack::UGSAbilityCost_ItemTagStack()
@@ -17,13 +16,6 @@ bool UGSAbilityCost_ItemTagStack::CheckCost(const UGSGameplayAbility* Ability, c
 	const float NumStacksReal = Quantity.GetValueAtLevel(AbilityLevel);
 	const int32 NumStacks = FMath::TruncToInt(NumStacksReal);
 
-	if (AGSRangedWeapon* Weapon = Cast<AGSRangedWeapon>(Spec->SourceObject.Get()))
-	{
-		const bool bCanApplyCost = Weapon->GetStatTagStackCount(Tag) >= NumStacks;
-
-		return bCanApplyCost;
-	}
-
 	return false;
 }
 
@@ -32,12 +24,5 @@ void UGSAbilityCost_ItemTagStack::ApplyCost(const UGSGameplayAbility* Ability, c
 	if (ActorInfo->IsNetAuthority())
 	{
 		FGameplayAbilitySpec* Spec = Ability->GetCurrentAbilitySpec();
-		if (AGSRangedWeapon* Weapon = Cast<AGSRangedWeapon>(Spec->SourceObject.Get()))
-		{
-			const int32 AbilityLevel = Ability->GetAbilityLevel(Handle, ActorInfo);
-			const float NumStacksReal = Quantity.GetValueAtLevel(AbilityLevel);
-			const int32 NumStacks = FMath::TruncToInt(NumStacksReal);
-			Weapon->RemoveStatTagStack(Tag, NumStacks);
-		}
 	}
 }

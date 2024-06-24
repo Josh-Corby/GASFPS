@@ -15,6 +15,11 @@ public:
 	static const FGSGameplayTags& Get() { return GameplayTags; }
 	static void InitializeNativeGameplayTags();
 
+	FGameplayTag InitState_Spawned;
+	FGameplayTag InitState_DataAvailable;
+	FGameplayTag InitState_DataInitialized;
+	FGameplayTag InitState_GameplayReady;
+
 	FGameplayTag InputTag_Move;
 	FGameplayTag InputTag_Look;
 	FGameplayTag InputTag_Interact;

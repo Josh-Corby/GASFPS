@@ -3,25 +3,82 @@
 
 #include "AbilitySystem/GSAbilitySystemComponent.h"
 #include "AbilitySystemComponent.h"
-#include "AbilitySystem/GSAbilitySet.h"
+#include "AbilitySystem/Abilities/GSGameplayAbility.h"
+
+UGSAbilitySystemComponent::UGSAbilitySystemComponent(const FObjectInitializer& ObjectInitializer)
+{
+	InputPressedSpecHandles.Reset();
+	InputReleasedSpecHandles.Reset();
+	InputHeldSpecHandles.Reset();
+}
+
+void UGSAbilitySystemComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+}
+
+void UGSAbilitySystemComponent::InitAbilityActorInfo(AActor* InOwnerActor, AActor* InAvatarActor)
+{
+	FGameplayAbilityActorInfo* ActorInfo = AbilityActorInfo.Get();
+	check(ActorInfo);
+	check(InOwnerActor);
+
+	const bool bHasNewPawnAvatar = Cast<APawn>(InAvatarActor) && (InAvatarActor != ActorInfo->AvatarActor);
+
+	Super::InitAbilityActorInfo(InOwnerActor, InAvatarActor);
+
+	if (bHasNewPawnAvatar)
+	{
+		TryActivateAbilitiesOnSpawn();
+	}
+}
+
+void UGSAbilitySystemComponent::TryActivateAbilitiesOnSpawn()
+{
+	ABILITYLIST_SCOPE_LOCK();
+	for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
+	{
+		const UGSGameplayAbility* GSAbilityCDO = CastChecked<UGSGameplayAbility>(AbilitySpec.Ability);
+		GSAbilityCDO->TryActivateAbilityOnSpawn(AbilityActorInfo.Get(), AbilitySpec);
+	}
+}
+
+void UGSAbilitySystemComponent::AbilitySpecInputPressed(FGameplayAbilitySpec& Spec)
+{
+	Super::AbilitySpecInputPressed(Spec);
+
+	// We don't support UGameplayAbility::bReplicateInputDirectly.
+	// Use replicated events instead so that the WaitInputPress ability task works.
+	if (Spec.IsActive())
+	{
+		// Invoke the InputPressed event. This is not replicated here. If someone is listening, they may replicate the InputPressed event to the server.
+		InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputPressed, Spec.Handle, Spec.ActivationInfo.GetActivationPredictionKey());
+	}
+}
+
+void UGSAbilitySystemComponent::AbilitySpecInputReleased(FGameplayAbilitySpec& Spec)
+{
+	Super::AbilitySpecInputReleased(Spec);
+
+	// We don't support UGameplayAbility::bReplicateInputDirectly.
+	// Use replicated events instead so that the WaitInputRelease ability task works.
+	if (Spec.IsActive())
+	{
+		// Invoke the InputReleased event. This is not replicated here. If someone is listening, they may replicate the InputReleased event to the server.
+		InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputReleased, Spec.Handle, Spec.ActivationInfo.GetActivationPredictionKey());
+	}
+}
 
 void UGSAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& InputTag)
 {
-	if (!InputTag.IsValid()) return;
-
-	FScopedAbilityListLock ActiveScopeLock(*this);
-	for (FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
+	if (InputTag.IsValid())
 	{
-		if (AbilitySpec.DynamicAbilityTags.HasTagExact(InputTag))
+		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 		{
-			AbilitySpecInputPressed(AbilitySpec);
-			if (AbilitySpec.IsActive())
+			if (AbilitySpec.Ability && (AbilitySpec.DynamicAbilityTags.HasTagExact(InputTag)))
 			{
-				InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputPressed, AbilitySpec.Handle, AbilitySpec.ActivationInfo.GetActivationPredictionKey());
-			}
-			else
-			{
-				TryActivateAbility(AbilitySpec.Handle);
+				InputPressedSpecHandles.AddUnique(AbilitySpec.Handle);
+				InputHeldSpecHandles.AddUnique(AbilitySpec.Handle);
 			}
 		}
 	}
@@ -29,136 +86,125 @@ void UGSAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Input
 
 void UGSAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& InputTag)
 {
-	if (!InputTag.IsValid()) return;
-
-	FScopedAbilityListLock ActiveScopeLock(*this);
-	for (FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
+	if (InputTag.IsValid())
 	{
-		if (AbilitySpec.DynamicAbilityTags.HasTagExact(InputTag) && AbilitySpec.IsActive())
+		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 		{
-			AbilitySpecInputReleased(AbilitySpec);
-			InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputReleased, AbilitySpec.Handle, AbilitySpec.ActivationInfo.GetActivationPredictionKey());
+			if (AbilitySpec.Ability && (AbilitySpec.DynamicAbilityTags.HasTagExact(InputTag)))
+			{
+				InputReleasedSpecHandles.AddUnique(AbilitySpec.Handle);
+				InputHeldSpecHandles.Remove(AbilitySpec.Handle);
+			}
 		}
 	}
 }
 
-void UGSAbilitySystemComponent::AddAbilities(AActor* AbilityOwner, const TArray<UGSAbilitySet*>& AbilitiesToGive)
+void UGSAbilitySystemComponent::ProcessAbilityInput(float DeltaTime, bool bGamePaused)
 {
-	if (AbilityOwner == nullptr)
+	/*if (HasMatchingGameplayTag(TAG_Gameplay_AbilityInputBlocked))
 	{
-		AbilityOwner = GetAvatarActor();
-	}
+		ClearAbilityInput();
+		return;
+	}*/
 
-	for (const UGSAbilitySet* AbilitySet : AbilitiesToGive)
+	static TArray<FGameplayAbilitySpecHandle> AbilitiesToActivate;
+	AbilitiesToActivate.Reset();
+
+	//@TODO: See if we can use FScopedServerAbilityRPCBatcher ScopedRPCBatcher in some of these loops
+
+	//
+	// Process all abilities that activate when the input is held.
+	//
+	for (const FGameplayAbilitySpecHandle& SpecHandle : InputHeldSpecHandles)
 	{
-		AbilitySet->GiveToAbilitySystem(this, AbilityOwner);
-	}
-}
-
-float UGSAbilitySystemComponent::PlayMontageForMesh(UGameplayAbility* InAnimatingAbility, USkeletalMeshComponent* InMesh, FGameplayAbilityActivationInfo ActivationInfo, UAnimMontage* NewAnimMontage, float InPlayRate, FName StartSectionName, float InStartTimeSeconds, bool bReplicateMontage)
-{
-	float Duration = -1.f;
-
-	UAnimInstance* AnimInstance = IsValid(InMesh) && InMesh->GetOwner() == AbilityActorInfo->AvatarActor ? InMesh->GetAnimInstance() : nullptr;
-	if (AnimInstance && NewAnimMontage)
-	{
-		Duration = AnimInstance->Montage_Play(NewAnimMontage, InPlayRate, EMontagePlayReturnType::MontageLength, InStartTimeSeconds);
-		if (Duration > 0.f)
+		if (const FGameplayAbilitySpec* AbilitySpec = FindAbilitySpecFromHandle(SpecHandle))
 		{
-			if (const UGameplayAbility* RawAnimatingAbility = LocalAnimMontageInfo.AnimatingAbility.Get())
+			if (AbilitySpec->Ability && !AbilitySpec->IsActive())
 			{
-				if (RawAnimatingAbility != InAnimatingAbility)
+				const UGSGameplayAbility* GSAbilityCDO = CastChecked<UGSGameplayAbility>(AbilitySpec->Ability);
+
+				if (GSAbilityCDO->GetActivationPolicy() == EGSAbilityActivationPolicy::WhileInputActive)
 				{
-					// The ability that was previously animating will have already gotten the 'interrupted' callback.
-					// It may be a good idea to make this a global policy and 'cancel' the ability.
-					// 
-					// For now, we expect it to end itself when this happens.
+					AbilitiesToActivate.AddUnique(AbilitySpec->Handle);
 				}
 			}
+		}
+	}
 
-			if (NewAnimMontage->HasRootMotion() && AnimInstance->GetOwningActor())
+	//
+	// Process all abilities that had their input pressed this frame.
+	//
+	for (const FGameplayAbilitySpecHandle& SpecHandle : InputPressedSpecHandles)
+	{
+		if (FGameplayAbilitySpec* AbilitySpec = FindAbilitySpecFromHandle(SpecHandle))
+		{
+			if (AbilitySpec->Ability)
 			{
-				UE_LOG(LogRootMotion, Log, TEXT("UAbilitySystemComponent::PlayMontage %s, Role: %s")
-					, *GetNameSafe(NewAnimMontage)
-					, *UEnum::GetValueAsString(TEXT("Engine.ENetRole"), AnimInstance->GetOwningActor()->GetLocalRole())
-				);
-			}
+				AbilitySpec->InputPressed = true;
 
-			LocalAnimMontageInfo.AnimMontage = NewAnimMontage;
-			LocalAnimMontageInfo.AnimatingAbility = InAnimatingAbility;
-			LocalAnimMontageInfo.PlayInstanceId = (LocalAnimMontageInfo.PlayInstanceId < UINT8_MAX ? LocalAnimMontageInfo.PlayInstanceId + 1 : 0);
-
-			if (InAnimatingAbility)
-			{
-				InAnimatingAbility->SetCurrentMontage(NewAnimMontage);
-			}
-
-			// Start at a given Section.
-			if (StartSectionName != NAME_None)
-			{
-				AnimInstance->Montage_JumpToSection(StartSectionName, NewAnimMontage);
-			}
-
-			// Replicate for non-owners and for replay recordings
-			// The data we set from GetRepAnimMontageInfo_Mutable() is used both by the server to replicate to clients and by clients to record replays.
-			// We need to set this data for recording clients because there exists network configurations where an abilities montage data will not replicate to some clients (for example: if the client is an autonomous proxy.)
-			if (ShouldRecordMontageReplication())
-			{
-				if (bReplicateMontage)
+				if (AbilitySpec->IsActive())
 				{
-					FGameplayAbilityRepAnimMontage& MutableRepAnimMontageInfo = GetRepAnimMontageInfo_Mutable();
+					// Ability is active so pass along the input event.
+					AbilitySpecInputPressed(*AbilitySpec);
+				}
+				else
+				{
+					const UGSGameplayAbility* GSAbilityCDO = CastChecked<UGSGameplayAbility>(AbilitySpec->Ability);
 
-					// Those are static parameters, they are only set when the montage is played. They are not changed after that.
-					MutableRepAnimMontageInfo.AnimMontage = NewAnimMontage;
-					MutableRepAnimMontageInfo.PlayInstanceId = (MutableRepAnimMontageInfo.PlayInstanceId < UINT8_MAX ? MutableRepAnimMontageInfo.PlayInstanceId + 1 : 0);
-
-					MutableRepAnimMontageInfo.SectionIdToPlay = 0;
-					if (MutableRepAnimMontageInfo.AnimMontage && StartSectionName != NAME_None)
+					if (GSAbilityCDO->GetActivationPolicy() == EGSAbilityActivationPolicy::OnInputTriggered)
 					{
-						// we add one so INDEX_NONE can be used in the on rep
-						MutableRepAnimMontageInfo.SectionIdToPlay = MutableRepAnimMontageInfo.AnimMontage->GetSectionIndex(StartSectionName) + 1;
+						AbilitiesToActivate.AddUnique(AbilitySpec->Handle);
 					}
-
-					// Update parameters that change during Montage life time.
-					AnimMontage_UpdateReplicatedData();
-				}
-			}
-
-			// Replicate to non-owners
-			if (IsOwnerActorAuthoritative())
-			{
-				// Force net update on our avatar actor.
-				if (AbilityActorInfo->AvatarActor != nullptr)
-				{
-					AbilityActorInfo->AvatarActor->ForceNetUpdate();
-				}
-			}
-			else
-			{
-				// If this prediction key is rejected, we need to end the preview
-				FPredictionKey PredictionKey = GetPredictionKeyForNewAction();
-				if (PredictionKey.IsValidKey())
-				{
-					PredictionKey.NewRejectedDelegate().BindUObject(this, &UGSAbilitySystemComponent::OnPredictiveMontageRejectedForMesh, InMesh, NewAnimMontage);
 				}
 			}
 		}
 	}
 
-	return Duration;
+	//
+	// Try to activate all the abilities that are from presses and holds.
+	// We do it all at once so that held inputs don't activate the ability
+	// and then also send a input event to the ability because of the press.
+	//
+	for (const FGameplayAbilitySpecHandle& AbilitySpecHandle : AbilitiesToActivate)
+	{
+		TryActivateAbility(AbilitySpecHandle);
+	}
+
+	//
+	// Process all abilities that had their input released this frame.
+	//
+	for (const FGameplayAbilitySpecHandle& SpecHandle : InputReleasedSpecHandles)
+	{
+		if (FGameplayAbilitySpec* AbilitySpec = FindAbilitySpecFromHandle(SpecHandle))
+		{
+			if (AbilitySpec->Ability)
+			{
+				AbilitySpec->InputPressed = false;
+
+				if (AbilitySpec->IsActive())
+				{
+					// Ability is active so pass along the input event.
+					AbilitySpecInputReleased(*AbilitySpec);
+				}
+			}
+		}
+	}
+
+	//
+	// Clear the cached ability handles.
+	//
+	InputPressedSpecHandles.Reset();
+	InputReleasedSpecHandles.Reset();
 }
 
-void UGSAbilitySystemComponent::OnPredictiveMontageRejectedForMesh(USkeletalMeshComponent* InMesh, UAnimMontage* PredictiveMontage)
+void UGSAbilitySystemComponent::ClearAbilityInput()
 {
-	static const float MONTAGE_PREDICTION_REJECT_FADETIME = 0.25f;
+	InputPressedSpecHandles.Reset();
+	InputReleasedSpecHandles.Reset();
+	InputHeldSpecHandles.Reset();
+}
 
-	UAnimInstance* AnimInstance = IsValid(InMesh) && InMesh->GetOwner() == AbilityActorInfo->AvatarActor ? InMesh->GetAnimInstance() : nullptr;
-	if (AnimInstance && PredictiveMontage)
-	{
-		// If this montage is still playing: kill it
-		if (AnimInstance->Montage_IsPlaying(PredictiveMontage))
-		{
-			AnimInstance->Montage_Stop(MONTAGE_PREDICTION_REJECT_FADETIME, PredictiveMontage);
-		}
-	}
+void UGSAbilitySystemComponent::SetTagRelationshipMapping(UGSAbilityTagRelationshipMapping* NewMapping)
+{
+	TagRelationshipMapping = NewMapping;
 }

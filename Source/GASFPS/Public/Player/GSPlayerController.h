@@ -2,17 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "GameFramework/PlayerController.h"
-#include "GameplayTagContainer.h"
+#include "CommonPlayerController.h"
+
 #include "GSPlayerController.generated.h"
 
-class UGSInputConfig;
-class UInputMappingContext;
-struct FInputActionValue;
+class AGSPlayerState;
+class UGSAbilitySystemComponent;
 
 UCLASS()
-class GASFPS_API AGSPlayerController : public APlayerController
+class GASFPS_API AGSPlayerController : public ACommonPlayerController
 {
 	GENERATED_BODY()
 	
@@ -20,29 +18,18 @@ public:
 
 	AGSPlayerController();
 
-	UFUNCTION(Client, Reliable, WithValidation)
-	void ClientSetControlRotation(FRotator NewRotation);
-	void ClientSetControlRotation_Implementation(FRotator NewRotation);
-	bool ClientSetControlRotation_Validate(FRotator NewRotation);
+	//~AController interface
+	virtual void OnUnPossess() override;
+	//~End of AController interface
 
-protected:
+	//~APlayerController interface
+	virtual void PostProcessInput(const float DeltaTime, const bool bGamePaused) override;
+	//~End of APlayerController interface
 
-	virtual void BeginPlay() override;
-	virtual void SetupInputComponent() override;
+	UFUNCTION(BlueprintCallable, Category = "GS|PlayerController")
+	AGSPlayerState* GetGSPlayerState() const;
 
-	void AbilityInputTagPressed(FGameplayTag InputTag);
-	void AbilityInputTagReleased(FGameplayTag InputTag);
-
-private:
-
-	void Input_Move(const FInputActionValue& Value);
-	void Input_Look(const FInputActionValue& Value);
-
-	UPROPERTY(EditDefaultsOnly)
-	TObjectPtr<UInputMappingContext> InputContext;
-
-	UPROPERTY(EditDefaultsOnly)
-	TObjectPtr<UGSInputConfig> InputConfig;
-
+	UFUNCTION(BlueprintCallable, Category = "GS|PlayerController")
+	UGSAbilitySystemComponent* GetGSAbilitySystemComponent() const;
 
 };

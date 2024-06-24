@@ -2,17 +2,16 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "GameFramework/GameModeBase.h"
+#include "ModularGameMode.h"
+
 #include "GSGameMode.generated.h"
 
-class AGSPlayerCharacter;
-class AGSAICharacter;
+class UGSPawnData;
 /**
  * 
  */
-UCLASS()
-class GASFPS_API AGSGameMode : public AGameModeBase
+UCLASS(Config = Game, Meta = (ShortTooltip = "The base game mode class used by this project."))
+class GASFPS_API AGSGameMode : public AModularGameModeBase
 {
 	GENERATED_BODY()
 	
@@ -20,20 +19,17 @@ public:
 
 	AGSGameMode();
 
-	void PlayerDied(AController* Controller);
+	UFUNCTION(BlueprintCallable, Category = "GS|Pawn")
+	const UGSPawnData* GetPawnDataForController(const AController* InController) const;
+
+	//~AGameModeBase interface
+	virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;
+	virtual APawn* SpawnDefaultPawnAtTransform_Implementation(AController* NewPlayer, const FTransform& SpawnTransform) override;
+	//~End of AGameModeBase interface
+
 
 protected:
 
 	UPROPERTY(EditDefaultsOnly)
-	float RespawnDelay = 5.f;
-
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<AGSPlayerCharacter> PlayerClass;
-
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<AGSAICharacter> AIClass;
-
-	virtual void BeginPlay() override;
-
-	void RespawnPlayer(AController* Controller);
+	TObjectPtr<UGSPawnData> DefaultPawnData;
 };

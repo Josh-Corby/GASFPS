@@ -2,12 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "AbilitySystemComponent.h"
 #include "GSAbilitySystemComponent.generated.h"
 
-class UGSAbilitySet;
-class USkeletalMeshComponent;
+class AActor;
+class UGSAbilityTagRelationshipMapping;
 
 /**
  * 
@@ -19,14 +18,42 @@ class GASFPS_API UGSAbilitySystemComponent : public UAbilitySystemComponent
 	
 public:
 
+	UGSAbilitySystemComponent(const FObjectInitializer& ObjectInitializer);
+
+	//~UActorComponent interface
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	//~End of UActorComponent interface
+
+	virtual void InitAbilityActorInfo(AActor* InOwnerActor, AActor* InAvatarActor) override;
+
 	void AbilityInputTagPressed(const FGameplayTag& InputTag);
 	void AbilityInputTagReleased(const FGameplayTag& InputTag);
 
-	void AddAbilities(AActor* AbilityOwner, const TArray<UGSAbilitySet*>& AbilitiesToGive);
+	void ProcessAbilityInput(float DeltaTime, bool bGamePaused);
+	void ClearAbilityInput();
 
-	virtual float PlayMontageForMesh(UGameplayAbility* AnimatingAbility, USkeletalMeshComponent* InMesh, FGameplayAbilityActivationInfo ActivationInfo, UAnimMontage* NewAnimMontage, float InPlayRate, FName StartSectionName = NAME_None, float InStartTimeSeconds = 0.f, bool bReplicateMontage = true);
+	/** Sets the current tag relationship mapping, if null it will clear it out */
+	void SetTagRelationshipMapping(UGSAbilityTagRelationshipMapping* NewMapping);
 
-	// Called when a prediction key that played a montage is rejected
-	void OnPredictiveMontageRejectedForMesh(USkeletalMeshComponent* InMesh, UAnimMontage* PredictiveMontage);
+protected:
 
+	void TryActivateAbilitiesOnSpawn();
+
+	virtual void AbilitySpecInputPressed(FGameplayAbilitySpec& Spec) override;
+	virtual void AbilitySpecInputReleased(FGameplayAbilitySpec& Spec) override;
+
+protected:
+
+	// If set, this table is used to look up tag relationships for activate and cancel
+	UPROPERTY()
+	TObjectPtr<UGSAbilityTagRelationshipMapping> TagRelationshipMapping;
+
+	// Handles to abilities that had their input pressed this frame.
+	TArray<FGameplayAbilitySpecHandle> InputPressedSpecHandles;
+
+	// Handles to abilities that had their input released this frame.
+	TArray<FGameplayAbilitySpecHandle> InputReleasedSpecHandles;
+
+	// Handles to abilities that have their input held.
+	TArray<FGameplayAbilitySpecHandle> InputHeldSpecHandles;
 };

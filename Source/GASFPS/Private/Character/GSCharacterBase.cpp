@@ -2,464 +2,251 @@
 
 
 #include "Character/GSCharacterBase.h"
-#include "AbilitySystemComponent.h"
+
 #include "AbilitySystem/GSAbilitySystemComponent.h"
-#include "Net/UnrealNetwork.h"
-#include "AbilitySystem/Attributes/GSHealthSet.h"
-#include "Weapon/GSWeapon.h"
-#include "GSGameplayTags.h"
+#include "Character/GSHealthComponent.h"
+#include "Character/GSCharacterMovementComponent.h"
+#include "Character/GSPawnExtensionComponent.h"
 #include "Components/CapsuleComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "Game/GSGameMode.h"
-#include "Weapon/GSRangedWeapon.h"
+#include "GSGameplayTags.h"
+#include "Net/UnrealNetwork.h"
+#include "Player/GSPlayerController.h"
+#include "Player/GSPlayerState.h"
+
+#include UE_INLINE_GENERATED_CPP_BY_NAME(GSCharacterBase)
+
+
+static FName NAME_GSCharacterCollisionProfile_Capsule(TEXT("GSPawnCapsule"));
+static FName NAME_GSCharacterCollisionProfile_Mesh(TEXT("GSPawnMesh"));
 
 // Sets default values
-AGSCharacterBase::AGSCharacterBase()
+AGSCharacterBase::AGSCharacterBase(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UGSCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
+	// Avoid ticking characters if possible.
 	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 
-	GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPose;
-	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	GetMesh()->SetCollisionProfileName(FName("NoCollision"));
-	GetMesh()->bCastHiddenShadow = true;
-	GetMesh()->bReceivesDecals = false;
+	NetCullDistanceSquared = 900000000.0f;
 
-	bAlwaysRelevant = true;
+	UCapsuleComponent* CapsuleComp = GetCapsuleComponent();
+	check(CapsuleComp);
+	CapsuleComp->InitCapsuleSize(40.0f, 90.0f);
+	CapsuleComp->SetCollisionProfileName(NAME_GSCharacterCollisionProfile_Capsule);
+
+	USkeletalMeshComponent* MeshComp = GetMesh();
+	check(MeshComp);
+	MeshComp->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
+	MeshComp->SetCollisionProfileName(NAME_GSCharacterCollisionProfile_Mesh);
+
+	UGSCharacterMovementComponent* GSMoveComp = CastChecked<UGSCharacterMovementComponent>(GetCharacterMovement());
+	GSMoveComp->GravityScale = 1.0f;
+	GSMoveComp->MaxAcceleration = 2400.0f;
+	GSMoveComp->BrakingFrictionFactor = 1.0f;
+	GSMoveComp->BrakingFriction = 6.0f;
+	GSMoveComp->GroundFriction = 8.0f;
+	GSMoveComp->BrakingDecelerationWalking = 1400.0f;
+	GSMoveComp->bUseControllerDesiredRotation = false;
+	GSMoveComp->bOrientRotationToMovement = false;
+	GSMoveComp->RotationRate = FRotator(0.0f, 720.0f, 0.0f);
+	GSMoveComp->bAllowPhysicsRotationDuringAnimRootMotion = false;
+	GSMoveComp->GetNavAgentPropertiesRef().bCanCrouch = true;
+	GSMoveComp->bCanWalkOffLedgesWhenCrouching = true;
+	GSMoveComp->SetCrouchedHalfHeight(65.0f);
+
+	PawnExtComponent = CreateDefaultSubobject<UGSPawnExtensionComponent>(TEXT("PawnExtensionComponent"));
+	PawnExtComponent->OnAbilitySystemInitialized_RegisterAndCall(FSimpleMulticastDelegate::FDelegate::CreateUObject(this, &ThisClass::OnAbilitySystemInitialized));
+	PawnExtComponent->OnAbilitySystemUninitialized_Register(FSimpleMulticastDelegate::FDelegate::CreateUObject(this, &ThisClass::OnAbilitySystemUninitialized));
+
+
+	HealthComponent = CreateDefaultSubobject<UGSHealthComponent>(TEXT("HealthComponent"));
 }
 
-void AGSCharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+void AGSCharacterBase::PreInitializeComponents()
 {
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
-	DOREPLIFETIME(AGSCharacterBase, Inventory);
-
-	DOREPLIFETIME_CONDITION(AGSCharacterBase, CurrentWeapon, COND_SimulatedOnly);
+	Super::PreInitializeComponents();
 }
 
 void AGSCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	GetWorldTimerManager().SetTimerForNextTick(this, &AGSCharacterBase::SpawnDefaultInventory);
 }
 
-void AGSCharacterBase::InitAbilityActorInfo()
+void AGSCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	Super::EndPlay(EndPlayReason);
 }
 
-bool AGSCharacterBase::AddWeaponToInventory_Implementation(AGSWeapon* NewWeapon, bool bEquipWeapon)
+void AGSCharacterBase::Reset()
 {
-	if (DoesWeaponExistInInventory(NewWeapon))
-	{
-		NewWeapon->Destroy();
+	DisableMovementAndCollision();
 
-		return false;
-	}
+	K2_OnReset();
 
-	Inventory.Weapons.Add(NewWeapon);
-	NewWeapon->SetOwningActor(this);
-
-	AddAbilities(NewWeapon, NewWeapon->GetAbilitiesToGrant());
-	if (bEquipWeapon)
-	{
-		EquipWeapon(NewWeapon);
-		ClientSyncCurrentWeapon(CurrentWeapon);
-	}
-
-	return true;
+	UninitAndDestroy();
 }
 
-bool AGSCharacterBase::IsAvailableForInteraction_Implementation(AActor* InteractionActor) const
+void AGSCharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown))
-	{
-		return true;
-	}
-
-	return IGSInteractableInterface::IsAvailableForInteraction_Implementation(InteractionActor);
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 }
 
-float AGSCharacterBase::GetInteractionDuration_Implementation(AActor* InteractionActor) const
+void AGSCharacterBase::PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker)
 {
-	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown))
-	{
-		return ReviveDuration;
-	}
-
-	return IGSInteractableInterface::GetInteractionDuration_Implementation(InteractionActor);
+	Super::PreReplication(ChangedPropertyTracker);
 }
 
-void AGSCharacterBase::PreInteract_Implementation(AActor* InteractingActor, AActor* InteractionActor)
+AGSPlayerController* AGSCharacterBase::GetGSPlayerController() const
 {
-	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown) && HasAuthority())
-	{
-		AbilitySystemComponent->TryActivateAbilitiesByTag(FGameplayTagContainer(FGSGameplayTags::Get().Abilities_Revive));
-	}
+	return CastChecked<AGSPlayerController>(Controller, ECastCheckedType::NullAllowed);
 }
 
-void AGSCharacterBase::PostInteract_Implementation(AActor* InteractingActor, AActor* InteractionActor)
+AGSPlayerState* AGSCharacterBase::GetGSPlayerState() const
 {
-	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown) && HasAuthority())
-	{
-		FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
-		EffectContext.AddSourceObject(this);
-		FGameplayEffectSpecHandle NewHandle = AbilitySystemComponent->MakeOutgoingSpec(ReviveEffect, 1.f, EffectContext);
-		AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*NewHandle.Data.Get());
-	}
+	return CastChecked<AGSPlayerState>(GetPlayerState(), ECastCheckedType::NullAllowed);
+
 }
 
-void AGSCharacterBase::GetPreInteractSyncType_Implementation(bool& bShouldSync, EAbilityTaskNetSyncType& Type, AActor* InteractionActor) const
+UGSAbilitySystemComponent* AGSCharacterBase::GetGSAbilitySystemComponent() const
 {
-	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown))
-	{
-		bShouldSync = true;
-		Type = EAbilityTaskNetSyncType::OnlyClientWait;
-		return;
-	}
-
-	IGSInteractableInterface::GetPreInteractSyncType_Implementation(bShouldSync, Type, InteractionActor);
-}
-
-void AGSCharacterBase::CancelInteraction_Implementation(AActor* InteractionActor)
-{
-	if (IsValid(AbilitySystemComponent) && AbilitySystemComponent->HasMatchingGameplayTag(FGSGameplayTags::Get().State_KnockedDown) && HasAuthority())
-	{
-		FGameplayTagContainer CancelTags(FGSGameplayTags::Get().Abilities_Revive);
-		AbilitySystemComponent->CancelAbilities(&CancelTags);
-	}
-}
-
-bool AGSCharacterBase::RemoveWeaponFromInventory(AGSWeapon* WeaponToRemove)
-{
-	if (!DoesWeaponExistInInventory(WeaponToRemove))
-	{
-		return false;
-	}
-
-	if (WeaponToRemove == CurrentWeapon)
-	{
-		UnEquipCurrentWeapon();
-		return true;
-	}
-
-	return false;
-}
-
-void AGSCharacterBase::RemoveAllWeaponsFromInventory()
-{
-	if (!HasAuthority())
-	{
-		return;
-	}
-
-	float NumWeapons = Inventory.Weapons.Num();
-	if (NumWeapons == 0)
-	{
-		return;
-	}
-
-	UnEquipCurrentWeapon();
-
-	float radius = 50.0f;
-
-	if (NumWeapons > 1)
-	{
-		for (int32 i = NumWeapons - 1; i >= 0; i--)
-		{
-			AGSWeapon* Weapon = Inventory.Weapons[i];
-			RemoveWeaponFromInventory(Weapon);
-
-			// Set the weapon up as a pickup
-
-			float OffsetX = radius * FMath::Cos((i / NumWeapons) * 2.0f * PI);
-			float OffsetY = radius * FMath::Sin((i / NumWeapons) * 2.0f * PI);
-			Weapon->OnDropped(GetActorLocation() + FVector(OffsetX, OffsetY, 0.0f));
-		}
-	}
-	else
-	{
-		AGSWeapon* Weapon = Inventory.Weapons[0];
-		RemoveWeaponFromInventory(Weapon);
-		Weapon->OnDropped(GetActorLocation());
-	}
-}
-
-void AGSCharacterBase::EquipWeapon(AGSWeapon* NewWeapon)
-{
-	if (!HasAuthority() && IsLocallyControlled())
-	{
-		ServerEquipWeapon(NewWeapon);
-		SetCurrentWeapon(NewWeapon, CurrentWeapon);
-	}
-	else if(HasAuthority())
-	{
-		SetCurrentWeapon(NewWeapon, CurrentWeapon);
-	}
-}
-
-void AGSCharacterBase::ServerEquipWeapon_Implementation(AGSWeapon* NewWeapon)
-{
-	EquipWeapon(NewWeapon);
-}
-
-bool AGSCharacterBase::ServerEquipWeapon_Validate(AGSWeapon* NewWeapon)
-{
-	return true;
-}
-
-float AGSCharacterBase::GetHealth() const
-{
-	return HealthSet->GetHealth();
-}
-
-FSimpleMulticastDelegate* AGSCharacterBase::GetTargetCancelInteractionDelegate(AActor* InteractionActor)
-{
-	return &InteractionCanceledDelegate;
-}
-
-void AGSCharacterBase::AddAbilities(AActor* AbilityOwner, const TArray<UGSAbilitySet*>& AbilitiesToGive) const
-{
-	UGSAbilitySystemComponent* GSASC = CastChecked<UGSAbilitySystemComponent>(GetAbilitySystemComponent());
-
-	if (!HasAuthority())
-	{
-		return;
-	}
-
-	GSASC->AddAbilities(AbilityOwner, AbilitiesToGive);
-}
-
-void AGSCharacterBase::InitializeAttributes()
-{
-	if (!IsValid(AbilitySystemComponent))
-	{
-		return;
-	}
-
-	if (!DefaultAttributes)
-	{
-		UE_LOG(LogTemp, Error, TEXT("%s() Missing DefaultAttributes for %s. Please fill in the character's Blueprint."), *FString(__FUNCTION__), *GetName());
-		return;
-	}
-
-	// Can run on Server and Client
-	FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
-	EffectContext.AddSourceObject(this);
-	FGameplayEffectSpecHandle NewHandle = AbilitySystemComponent->MakeOutgoingSpec(DefaultAttributes, 1.f, EffectContext);
-	AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*NewHandle.Data.Get());
-}
-
-void AGSCharacterBase::PlayKnockDownEffects()
-{
-	if (DeathMontage)
-	{
-		PlayAnimMontage(DeathMontage);
-	}
+	return Cast<UGSAbilitySystemComponent>(GetAbilitySystemComponent());
 }
 
 UAbilitySystemComponent* AGSCharacterBase::GetAbilitySystemComponent() const
 {
-	return AbilitySystemComponent;
-}
-
-void AGSCharacterBase::OnRep_CurrentWeapon(AGSWeapon* LastWeapon)
-{
-	SetCurrentWeapon(CurrentWeapon, LastWeapon);
-}
-
-void AGSCharacterBase::SetCurrentWeapon(AGSWeapon* NewWeapon, AGSWeapon* LastWeapon)
-{
-	if (NewWeapon == LastWeapon)
+	if (PawnExtComponent == nullptr)
 	{
-		return;
+		return nullptr;
 	}
 
-	if (AbilitySystemComponent)
-	{
-		FGameplayTagContainer AbilitiesToCancel = FGameplayTagContainer(WeaponAbilityTag);
-		AbilitySystemComponent->CancelAbilities(&AbilitiesToCancel);
-	}
+	return PawnExtComponent->GetGSAbilitySystemComponent();
+}
 
-	UnEquipWeapon(LastWeapon);
+void AGSCharacterBase::OnAbilitySystemInitialized()
+{
+	UGSAbilitySystemComponent* GSASC = GetGSAbilitySystemComponent();
+	check(GSASC);
 
-	if (NewWeapon)
+	HealthComponent->InitializeWithAbilitySystem(GSASC);
+
+	InitializeGameplayTags();
+}
+
+void AGSCharacterBase::OnAbilitySystemUninitialized()
+{
+	HealthComponent->UninitializeFromAbilitySystem();
+}
+
+void AGSCharacterBase::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+}
+
+void AGSCharacterBase::UnPossessed()
+{
+	Super::UnPossessed();
+
+	PawnExtComponent->HandleControllerChanged();
+}
+
+void AGSCharacterBase::OnRep_Controller()
+{
+	Super::OnRep_Controller();
+
+	PawnExtComponent->HandleControllerChanged();
+}
+
+void AGSCharacterBase::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+
+	PawnExtComponent->HandlePlayerStateReplicated();
+}
+
+void AGSCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	PawnExtComponent->SetupPlayerInputComponent();
+}
+
+void AGSCharacterBase::InitializeGameplayTags()
+{
+}
+
+void AGSCharacterBase::GetOwnedGameplayTags(FGameplayTagContainer& TagContainer) const
+{
+	if (const UGSAbilitySystemComponent* GSASC = GetGSAbilitySystemComponent())
 	{
-		CurrentWeapon = NewWeapon;
-		CurrentWeapon->SetOwningActor(this);
-		CurrentWeapon->Equip();
-	}
-	else
-	{
-		UnEquipCurrentWeapon();
+		GSASC->GetOwnedGameplayTags(TagContainer);
 	}
 }
 
-void AGSCharacterBase::UnEquipWeapon(AGSWeapon* WeaponToUnEquip)
+bool AGSCharacterBase::HasMatchingGameplayTag(FGameplayTag TagToCheck) const
 {
-	if (!WeaponToUnEquip)
+	if (const UGSAbilitySystemComponent* GSASC = GetGSAbilitySystemComponent())
 	{
-		return;
-	}
-
-	WeaponToUnEquip->UnEquip();
-}
-
-void AGSCharacterBase::UnEquipCurrentWeapon()
-{
-	UnEquipWeapon(CurrentWeapon);
-	CurrentWeapon = nullptr;
-}
-
-bool AGSCharacterBase::DoesWeaponExistInInventory(AGSWeapon* InWeapon) const
-{
-	for (AGSWeapon* Weapon : Inventory.Weapons)
-	{
-		if (Weapon && InWeapon && Weapon->GetClass() == InWeapon->GetClass())
-		{
-			return true;
-		}
+		return GSASC->HasMatchingGameplayTag(TagToCheck);
 	}
 
 	return false;
 }
 
-void AGSCharacterBase::OnRep_Inventory()
+bool AGSCharacterBase::HasAllMatchingGameplayTags(const FGameplayTagContainer& TagContainer) const
 {
-	if (GetLocalRole() == ROLE_AutonomousProxy && Inventory.Weapons.Num() > 0 && !CurrentWeapon)
+	if (const UGSAbilitySystemComponent* GSASC = GetGSAbilitySystemComponent())
 	{
-		ServerSyncCurrentWeapon();
+		return GSASC->HasAllMatchingGameplayTags(TagContainer);
 	}
+
+	return false;
 }
 
-void AGSCharacterBase::ServerSyncCurrentWeapon_Implementation()
+bool AGSCharacterBase::HasAnyMatchingGameplayTags(const FGameplayTagContainer& TagContainer) const
 {
-	ClientSyncCurrentWeapon(CurrentWeapon);
+	if (const UGSAbilitySystemComponent* GSASC = GetGSAbilitySystemComponent())
+	{
+		return GSASC->HasAnyMatchingGameplayTags(TagContainer);
+	}
+
+	return false;
 }
 
-bool AGSCharacterBase::ServerSyncCurrentWeapon_Validate()
+void AGSCharacterBase::DisableMovementAndCollision()
 {
-	return true;
+	if (Controller)
+	{
+		Controller->SetIgnoreMoveInput(true);
+	}
+
+	UCapsuleComponent* CapsuleComp = GetCapsuleComponent();
+	check(CapsuleComp);
+	CapsuleComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	CapsuleComp->SetCollisionResponseToAllChannels(ECR_Ignore);
+
+	UGSCharacterMovementComponent* GSMoveComp = CastChecked<UGSCharacterMovementComponent>(GetCharacterMovement());
+	GSMoveComp->StopMovementImmediately();
+	GSMoveComp->DisableMovement();
 }
 
-void AGSCharacterBase::ClientSyncCurrentWeapon_Implementation(AGSWeapon* InWeapon)
+void AGSCharacterBase::UninitAndDestroy()
 {
-	AGSWeapon* LastWeapon = CurrentWeapon;
-	CurrentWeapon = InWeapon;
-	OnRep_CurrentWeapon(LastWeapon);
-}
-
-bool AGSCharacterBase::ClientSyncCurrentWeapon_Validate(AGSWeapon* InWeapon)
-{
-	return true;
-}
-
-void AGSCharacterBase::KnockDown()
-{
-	if (!HasAuthority())
+	if (GetLocalRole() == ROLE_Authority)
 	{
-		return;
+		DetachFromControllerPendingDestroy();
+		SetLifeSpan(0.1f);
 	}
 
-	if (IsValid(AbilitySystemComponent))
+	// Uninitialize the ASC if we're still the avatar actor (otherwise another pawn already did it when they became the avatar actor)
+	if (UGSAbilitySystemComponent* GSASC = GetGSAbilitySystemComponent())
 	{
-		AbilitySystemComponent->CancelAllAbilities();
-
-		FGameplayEffectContextHandle ContextHandle = AbilitySystemComponent->MakeEffectContext();
-		ContextHandle.AddSourceObject(this);
-		const FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(KnockDownEffect, 1.f, ContextHandle);
-		AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-	}
-
-	GetCharacterMovement()->MaxWalkSpeed = 0.f;
-	HealthSet->FullHeal();
-}
-
-void AGSCharacterBase::KnockDownTagChanged(const FGameplayTag CallbackTag, int32 NewCount)
-{
-	if (!IsValid(this))
-	{
-		return;
-	}
-
-	if (NewCount > 0)
-	{
-		PlayKnockDownEffects();
-	}
-}
-
-void AGSCharacterBase::FinishDying()
-{
-	if (!HasAuthority())
-	{
-		return;
-	}
-
-	RemoveAllWeaponsFromInventory();
-
-	if (AGSGameMode* GM = Cast<AGSGameMode>(GetWorld()->GetAuthGameMode()))
-	{
-		GM->PlayerDied(GetController());
-	}
-
-	if (IsValid(AbilitySystemComponent))
-	{
-		AbilitySystemComponent->CancelAllAbilities();
-	}
-
-	Destroy();
-}
-
-void AGSCharacterBase::SpawnDefaultInventory()
-{
-	if (!HasAuthority())
-	{
-		return;
-	}
-
-	int32 NumWeaponClasses = DefaultInventoryWeaponClasses.Num();
-	for (int32 i = 0; i < NumWeaponClasses; i++)
-	{
-		if (!DefaultInventoryWeaponClasses[i])
+		if (GSASC->GetAvatarActor() == this)
 		{
-			// An empty item was added to the Array in blueprint
-			continue;
-		}
-
-		AGSWeapon* NewWeapon = GetWorld()->SpawnActorDeferred<AGSWeapon>(DefaultInventoryWeaponClasses[i],
-		FTransform::Identity, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-		NewWeapon->bSpawnWithCollision = false;
-		NewWeapon->FinishSpawning(FTransform::Identity);
-
-		bool bEquipFirstWeapon = i == 0;
-		if (this->Implements<UGSInventoryInterface>())
-		{
-			IGSInventoryInterface::Execute_AddWeaponToInventory(this, NewWeapon, bEquipFirstWeapon);
+			PawnExtComponent->UninitializeAbilitySystem();
 		}
 	}
-}
 
-void AGSCharacterBase::AddStartupAbilities()
-{
-	if (StartupAbilities.Num() == 0 || !HasAuthority())
-	{
-		return;
-	}
-
-	AddAbilities(this, StartupAbilities);
-}
-
-void AGSCharacterBase::HealthDepleted(AActor* EffectInstigator, AActor* EffectCauser, const FGameplayEffectSpec* EffectSpec, float EffectMagnitude, float OldValue, float NewValue)
-{
-	const FGSGameplayTags& GameplayTags = FGSGameplayTags::Get();
-	if (IsValid(this) && !IsAlive() && !AbilitySystemComponent->HasMatchingGameplayTag(GameplayTags.State_Dead))
-	{
-		if (!AbilitySystemComponent->HasMatchingGameplayTag(GameplayTags.State_KnockedDown))
-		{
-			KnockDown();
-		}
-		else
-		{
-			FinishDying();
-		}
-	}
+	SetActorHiddenInGame(true);
 }

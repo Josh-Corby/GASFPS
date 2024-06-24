@@ -4,7 +4,6 @@
 #include "GSAbilitySystemLibrary.h"
 #include "GSAbilityTypes.h"
 #include "AbilitySystemComponent.h"
-#include "Interfaces/GSCombatInterface.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "GSGameplayTags.h"
 
@@ -37,7 +36,7 @@ void UGSAbilitySystemLibrary::GetLivePlayersWithinRadius(const UObject* WorldCon
 		World->OverlapMultiByObjectType(Overlaps, SphereOrigin, FQuat::Identity, FCollisionObjectQueryParams(FCollisionObjectQueryParams::InitType::AllDynamicObjects), FCollisionShape::MakeSphere(Radius), SphereParams);
 		for (FOverlapResult& Overlap : Overlaps)
 		{
-			if (Overlap.GetActor()->Implements<UGSCombatInterface>()/* && !ICombatInterface::Execute_IsDead(Overlap.GetActor())*/)
+			if (true/*Overlap.GetActor()->Implements<UGSCombatInterface>() && !ICombatInterface::Execute_IsDead(Overlap.GetActor())*/)
 			{
 				OutOverlappingActors.AddUnique(Overlap.GetActor());
 			}

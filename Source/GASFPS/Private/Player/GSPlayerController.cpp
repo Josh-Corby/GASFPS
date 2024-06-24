@@ -3,111 +3,50 @@
 
 #include "Player/GSPlayerController.h"
 
-#include "Input/GSInputComponent.h"
-#include "GSGameplayTags.h"
-#include "EnhancedInputSubsystems.h"
-#include "AbilitySystem/GSAbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
-#include "InputActionValue.h"
+#include "AbilitySystem/GSAbilitySystemComponent.h"
+#include "Player/GSPlayerState.h"
+
 
 AGSPlayerController::AGSPlayerController()
 {
 	bReplicates = true;
 }
 
-void AGSPlayerController::BeginPlay()
+void AGSPlayerController::OnUnPossess()
 {
-	Super::BeginPlay();
-
-	check(InputContext);
-	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+	// Make sure the pawn that is being unpossessed doesn't remain our ASC's avatar actor
+	if (APawn* PawnBeingUnpossessed = GetPawn())
 	{
-		Subsystem->AddMappingContext(InputContext, 0);
+		if (UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(PlayerState))
+		{
+			if (ASC->GetAvatarActor() == PawnBeingUnpossessed)
+			{
+				ASC->SetAvatarActor(nullptr);
+			}
+		}
 	}
+
+	Super::OnUnPossess();
 }
 
-void AGSPlayerController::SetupInputComponent()
+void AGSPlayerController::PostProcessInput(const float DeltaTime, const bool bGamePaused)
 {
-	Super::SetupInputComponent();
+	if (UGSAbilitySystemComponent* GSASC = GetGSAbilitySystemComponent())
+	{
+		GSASC->ProcessAbilityInput(DeltaTime, bGamePaused);
+	}
 
-	UGSInputComponent* GSInputComponent = CastChecked<UGSInputComponent>(InputComponent);
-
-
-	GSInputComponent->BindNativeAction(InputConfig, FGSGameplayTags::Get().InputTag_Move, ETriggerEvent::Triggered, this, &AGSPlayerController::Input_Move, false);
-	GSInputComponent->BindNativeAction(InputConfig, FGSGameplayTags::Get().InputTag_Look, ETriggerEvent::Triggered, this, &AGSPlayerController::Input_Look, false);
-	GSInputComponent->BindAbilityActions(InputConfig, this, &AGSPlayerController::AbilityInputTagPressed, &AGSPlayerController::AbilityInputTagReleased);
+	Super::PostProcessInput(DeltaTime, bGamePaused);
 }
 
-void AGSPlayerController::AbilityInputTagPressed(FGameplayTag InputTag)
+AGSPlayerState* AGSPlayerController::GetGSPlayerState() const
 {
-	if (UGSAbilitySystemComponent* GSASC = Cast<UGSAbilitySystemComponent>(UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetPawn())))
-	{
-		GSASC->AbilityInputTagPressed(InputTag);
-	}
+	return CastChecked<AGSPlayerState>(PlayerState, ECastCheckedType::NullAllowed);
 }
 
-void AGSPlayerController::AbilityInputTagReleased(FGameplayTag InputTag)
+UGSAbilitySystemComponent* AGSPlayerController::GetGSAbilitySystemComponent() const
 {
-	if (UGSAbilitySystemComponent* GSASC = Cast<UGSAbilitySystemComponent>(UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetPawn())))
-	{
-		GSASC->AbilityInputTagReleased(InputTag);
-	}
-}
-
-void AGSPlayerController::Input_Move(const FInputActionValue& Value)
-{
-	APawn* ControlledPawn = GetPawn();
-
-	if (!ControlledPawn)
-	{
-		return;
-	}
-
-	FVector2D InputVector = Value.Get<FVector2D>();
-	const FRotator Rotation = GetControlRotation();
-	const FRotator YawRotation(0.f, Rotation.Yaw, 0.f);
-
-	if (InputVector.X != 0.f)
-	{
-		const FVector ForwardVector = YawRotation.RotateVector(FVector::RightVector);
-		ControlledPawn->AddMovementInput(ForwardVector, InputVector.X);
-	}
-
-	if (InputVector.Y != 0.f)
-	{
-		const FVector RightVector = YawRotation.RotateVector(FVector::ForwardVector);
-		ControlledPawn->AddMovementInput(RightVector, InputVector.Y);
-	}
-}
-
-void AGSPlayerController::Input_Look(const FInputActionValue& Value)
-{
-	APawn* ControlledPawn = GetPawn();
-
-	if (!ControlledPawn)
-	{
-		return;
-	}
-
-	const FVector2D InputValue = Value.Get<FVector2D>();
-
-	if (InputValue.X != 0.f)
-	{
-		ControlledPawn->AddControllerYawInput(InputValue.X);
-	}
-
-	if (InputValue.Y != 0.f)
-	{
-		ControlledPawn->AddControllerPitchInput(InputValue.Y);
-	}
-}
-
-void AGSPlayerController::ClientSetControlRotation_Implementation(FRotator NewRotation)
-{
-	SetControlRotation(NewRotation);
-}
-
-bool AGSPlayerController::ClientSetControlRotation_Validate(FRotator NewRotation)
-{
-	return true;
+	const AGSPlayerState* GSPS = GetGSPlayerState();
+	return (GSPS ? GSPS->GetGSAbilitySystemComponent() : nullptr);
 }

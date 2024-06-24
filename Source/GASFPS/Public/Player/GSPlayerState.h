@@ -9,8 +9,10 @@
 
 class UGSCombatSet;
 class UGSHealthSet;
-
 class UAbilitySystemComponent;
+class UGSAbilitySystemComponent;
+class UGSPawnData;
+class AGSPlayerController;
 /**
  * 
  */
@@ -23,15 +25,32 @@ public:
 
 	AGSPlayerState();
 
-	UAbilitySystemComponent* GetAbilitySystemComponent() const override;
-	UGSHealthSet* GetHealthSet() const { return HealthSet; }
+	UFUNCTION(BlueprintCallable, Category = "GS|PlayerState")
+	AGSPlayerController* GetGSPlayerController() const;
+
+	UFUNCTION(BlueprintCallable, Category = "GS|PlayerState")
+	UGSAbilitySystemComponent* GetGSAbilitySystemComponent() const { return AbilitySystemComponent; }
+	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+
+	template <class T>
+	const T* GetPawnData() const { return Cast<T>(PawnData); }
+
+	void SetPawnData(const UGSPawnData* InPawnData);
+
+
+protected:
+	UFUNCTION()
+	void OnRep_PawnData();
 
 protected:
 
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
+	UPROPERTY(ReplicatedUsing = OnRep_PawnData)
+	TObjectPtr<const UGSPawnData> PawnData;
 
 private:
+
+	UPROPERTY(VisibleAnywhere, Category = "GS|PlayerState")
+	TObjectPtr<UGSAbilitySystemComponent> AbilitySystemComponent;
 
 	UPROPERTY()
 	TObjectPtr<UGSHealthSet> HealthSet;

@@ -13,7 +13,10 @@
 				"GameplayAbilities",
 				"EnhancedInput",
 				"CoreUObject",
-				"AIModule"
+				"AIModule",
+				"ModularGameplay",
+				"CommonGame",
+				"ModularGameplayActors"
 			]
 		}
 	],
@@ -36,6 +39,10 @@
 			"SupportedTargetPlatforms": [
 				"Win64"
 			]
+		},
+		{
+			"Name": "ModularGameplay",
+			"Enabled": true
 		}
 	]
 }
