@@ -167,7 +167,7 @@ void UGSHeroComponent::HandleChangeInitState(UGameFrameworkComponentManager* Man
 		// Hook up the delegate for all pawns, in case we spectate later
 		/*if (PawnData)
 		{
-			if (ULyraCameraComponent* CameraComponent = ULyraCameraComponent::FindCameraComponent(Pawn))
+			if (UGSCameraComponent* CameraComponent = UGSCameraComponent::FindCameraComponent(Pawn))
 			{
 				CameraComponent->DetermineCameraModeDelegate.BindUObject(this, &ThisClass::DetermineCameraMode);
 			}
@@ -248,11 +248,12 @@ void UGSHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCompone
 				}
 
 				UGSInputComponent* GSIC = Cast<UGSInputComponent>(PlayerInputComponent);
-				if (ensureMsgf(GSIC, TEXT("Unexpected Input Component class! The Gameplay Abilities will not be bound to their inputs. Change the input component to ULyraInputComponent or a subclass of it.")))
+				if (ensureMsgf(GSIC, TEXT("Unexpected Input Component class! The Gameplay Abilities will not be bound to their inputs. Change the input component to UGSInputComponent or a subclass of it.")))
 				{
 					// This is where we actually bind and input action to a gameplay tag, which means that Gameplay Ability Blueprints will
 					// be triggered directly by these input actions Triggered events. 
-					GSIC->BindAbilityActions(InputConfig, this, &ThisClass::Input_AbilityInputTagPressed, &ThisClass::Input_AbilityInputTagReleased);
+					TArray<uint32> BindHandles;
+					GSIC->BindAbilityActions(InputConfig, this, &ThisClass::Input_AbilityInputTagPressed, &ThisClass::Input_AbilityInputTagReleased, BindHandles);
 
 					const FGSGameplayTags& GameplayTags = FGSGameplayTags::Get();
 					GSIC->BindNativeAction(InputConfig, GameplayTags.InputTag_Move, ETriggerEvent::Triggered, this, &ThisClass::Input_Move, /*bLogIfNotFound=*/ false);

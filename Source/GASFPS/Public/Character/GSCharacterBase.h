@@ -25,7 +25,7 @@ class GASFPS_API AGSCharacterBase : public AModularCharacter, public IAbilitySys
 
 public:
 
-	AGSCharacterBase(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+	AGSCharacterBase(const FObjectInitializer& ObjectInitializer);
 
 	UFUNCTION(BlueprintCallable, Category = "GS|Character")
 	AGSPlayerController* GetGSPlayerController() const;

@@ -12,6 +12,8 @@
 #include "GameFramework/Character.h"
 
 UGSHealthSet::UGSHealthSet()
+	: Health(100.0f)
+	, MaxHealth(100.0f)
 {
 	bOutOfHealth = false;
 	MaxHealthBeforeAttributeChange = 0.0f;

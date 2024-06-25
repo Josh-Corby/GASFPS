@@ -23,7 +23,7 @@ class GASFPS_API AGSPlayerState : public APlayerState, public IAbilitySystemInte
 	
 public:
 
-	AGSPlayerState();
+	AGSPlayerState(const FObjectInitializer& ObjectInitializer);
 
 	UFUNCTION(BlueprintCallable, Category = "GS|PlayerState")
 	AGSPlayerController* GetGSPlayerController() const;

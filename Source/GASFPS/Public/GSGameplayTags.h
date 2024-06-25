@@ -15,6 +15,9 @@ public:
 	static const FGSGameplayTags& Get() { return GameplayTags; }
 	static void InitializeNativeGameplayTags();
 
+	FGameplayTag Ability_ActivateFail_IsDead;
+	FGameplayTag Ability_ActivateFail_ActivationGroup;
+
 	FGameplayTag InitState_Spawned;
 	FGameplayTag InitState_DataAvailable;
 	FGameplayTag InitState_DataInitialized;
@@ -44,7 +47,7 @@ public:
 	FGameplayTag Ability_Interaction_Block;
 
 	FGameplayTag Abilities_Revive;
-
+	
 	TMap<FGameplayTag, FGameplayTag> DamageTypesToDebuffs;
 
 private:

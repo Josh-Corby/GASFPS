@@ -98,6 +98,11 @@ void AGSCharacterBase::PreReplication(IRepChangedPropertyTracker& ChangedPropert
 	Super::PreReplication(ChangedPropertyTracker);
 }
 
+USkeletalMeshComponent* AGSCharacterBase::GetEquipMesh_Implementation() const
+{
+	return GetMesh();
+}
+
 AGSPlayerController* AGSCharacterBase::GetGSPlayerController() const
 {
 	return CastChecked<AGSPlayerController>(Controller, ECastCheckedType::NullAllowed);

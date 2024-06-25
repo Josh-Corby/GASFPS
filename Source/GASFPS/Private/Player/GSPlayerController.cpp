@@ -8,9 +8,9 @@
 #include "Player/GSPlayerState.h"
 
 
-AGSPlayerController::AGSPlayerController()
+AGSPlayerController::AGSPlayerController(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
 {
-	bReplicates = true;
 }
 
 void AGSPlayerController::OnUnPossess()

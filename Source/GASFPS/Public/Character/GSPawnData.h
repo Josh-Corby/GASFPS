@@ -42,6 +42,6 @@ public:
 	TObjectPtr<UGSInputConfig> InputConfig;
 
 	// Default camera mode used by player controlled pawns.
-	//UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Lyra|Camera")
-	//TSubclassOf<ULyraCameraMode> DefaultCameraMode;
+	//UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GS|Camera")
+	//TSubclassOf<UGSCameraMode> DefaultCameraMode;
 };

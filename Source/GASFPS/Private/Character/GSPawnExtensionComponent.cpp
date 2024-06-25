@@ -157,7 +157,7 @@ void UGSPawnExtensionComponent::UninitializeAbilitySystem()
 	if (AbilitySystemComponent->GetAvatarActor() == GetOwner())
 	{
 		FGameplayTagContainer AbilityTypesToIgnore;
-		//AbilityTypesToIgnore.AddTag(LyraGameplayTags::Ability_Behavior_SurvivesDeath);
+		//AbilityTypesToIgnore.AddTag(GSGameplayTags::Ability_Behavior_SurvivesDeath);
 
 		AbilitySystemComponent->CancelAbilities(nullptr, &AbilityTypesToIgnore);
 		//AbilitySystemComponent->ClearAbilityInput();

@@ -16,7 +16,13 @@ class GASFPS_API AGSPlayerController : public ACommonPlayerController
 	
 public:
 
-	AGSPlayerController();
+	AGSPlayerController(const FObjectInitializer& ObjectInitializer);
+
+	UFUNCTION(BlueprintCallable, Category = "GS|PlayerController")
+	AGSPlayerState* GetGSPlayerState() const;
+
+	UFUNCTION(BlueprintCallable, Category = "GS|PlayerController")
+	UGSAbilitySystemComponent* GetGSAbilitySystemComponent() const;
 
 	//~AController interface
 	virtual void OnUnPossess() override;
@@ -25,11 +31,5 @@ public:
 	//~APlayerController interface
 	virtual void PostProcessInput(const float DeltaTime, const bool bGamePaused) override;
 	//~End of APlayerController interface
-
-	UFUNCTION(BlueprintCallable, Category = "GS|PlayerController")
-	AGSPlayerState* GetGSPlayerState() const;
-
-	UFUNCTION(BlueprintCallable, Category = "GS|PlayerController")
-	UGSAbilitySystemComponent* GetGSAbilitySystemComponent() const;
 
 };

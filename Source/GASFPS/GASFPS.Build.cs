@@ -8,9 +8,9 @@ public class GASFPS : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "GameplayTags", "GameplayTasks", "GameplayAbilities", "AIModule", "ModularGameplay" ,"ModularGameplayActors" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "GameplayTags", "GameplayTasks", "GameplayAbilities", "AIModule", "ModularGameplay" , "Niagara", "ModularGameplayActors" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "InputCore", "EnhancedInput", "NetCore"});
+		PrivateDependencyModuleNames.AddRange(new string[] { "InputCore", "EnhancedInput", "GameplayMessageRuntime", "NetCore"});
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

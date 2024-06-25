@@ -13,7 +13,8 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GSPlayerState)
 
 
-AGSPlayerState::AGSPlayerState()
+AGSPlayerState::AGSPlayerState(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
 {
 	AbilitySystemComponent = CreateDefaultSubobject<UGSAbilitySystemComponent>("AbilitySystemComponent");
 	AbilitySystemComponent->SetIsReplicated(true);

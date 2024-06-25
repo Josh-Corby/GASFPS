@@ -7,6 +7,7 @@
 #include "GSAbilityTypes.generated.h"
 
 class UGameplayEffect;
+class IGSAbilitySourceInterface;
 
 USTRUCT(BlueprintType)
 struct FDamageEffectParams
@@ -47,6 +48,43 @@ struct  FGSGameplayEffectContext : public FGameplayEffectContext
 
 public:
 
+	FGSGameplayEffectContext()
+		: FGameplayEffectContext()
+	{
+	}
+
+	FGSGameplayEffectContext(AActor* InInstigator, AActor* InEffectCauser)
+		: FGameplayEffectContext(InInstigator, InEffectCauser)
+	{
+	}
+
+	/** Returns the wrapped FGSGameplayEffectContext from the handle, or nullptr if it doesn't exist or is the wrong type */
+	static GASFPS_API FGSGameplayEffectContext* ExtractEffectContext(struct FGameplayEffectContextHandle Handle);
+
+	///** Sets the object used as the ability source */
+	void SetAbilitySource(const IGSAbilitySourceInterface* InObject, float InSourceLevel);
+
+	///** Returns the ability source interface associated with the source object. Only valid on the authority. */
+	const IGSAbilitySourceInterface* GetAbilitySource() const;
+
+	virtual UScriptStruct* GetScriptStruct() const
+	{
+		return StaticStruct();
+	}
+
+	virtual FGSGameplayEffectContext* Duplicate() const
+	{
+		FGSGameplayEffectContext* NewContext = new FGSGameplayEffectContext();
+		*NewContext = *this;
+		if (GetHitResult())
+		{
+			NewContext->AddHitResult(*GetHitResult(), true);
+		}
+		return NewContext;
+	}
+
+	virtual bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess) override;
+
 	// Getters
 	bool IsSuccessfulDebuff() const { return bIsSuccessfulDebuff; }
 	float GetDebuffDuration() const { return DebuffDuration; }
@@ -68,24 +106,9 @@ protected:
 
 	TSharedPtr<FGameplayTag> DamageType;
 
-public:
-	virtual UScriptStruct* GetScriptStruct() const
-	{
-		return StaticStruct();
-	}
-
-	virtual FGSGameplayEffectContext* Duplicate() const
-	{
-		FGSGameplayEffectContext* NewContext = new FGSGameplayEffectContext();
-		*NewContext = *this;
-		if (GetHitResult())
-		{
-			NewContext->AddHitResult(*GetHitResult(), true);
-		}
-		return NewContext;
-	}
-
-	virtual bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess) override;
+	/** Ability Source object (should implement IGSAbilitySourceInterface). NOT replicated currently */
+	UPROPERTY()
+	TWeakObjectPtr<const UObject> AbilitySourceObject;
 };
 
 template<>

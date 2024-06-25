@@ -26,8 +26,9 @@ public:
 	void BindNativeAction(const UGSInputConfig* InputConfig, const FGameplayTag& InputTag, ETriggerEvent TriggerEvent, UserClass* Object, FuncType Func, bool bLogNotFound);
 
 	template<class UserClass, typename PressedFuncType, typename ReleasedFuncType>
-	void BindAbilityActions(const UGSInputConfig* InputConfig, UserClass* Object, PressedFuncType PressedFunc, ReleasedFuncType ReleasedFunc);
+	void BindAbilityActions(const UGSInputConfig* InputConfig, UserClass* Object, PressedFuncType PressedFunc, ReleasedFuncType ReleasedFunc, TArray<uint32>& BindHandles);
 
+	void RemoveBinds(TArray<uint32>& BindHandles);
 };
 
 template<class UserClass, typename FuncType>
@@ -42,7 +43,7 @@ void UGSInputComponent::BindNativeAction(const UGSInputConfig* InputConfig, cons
 
 
 template<class UserClass, typename PressedFuncType, typename ReleasedFuncType>
-void UGSInputComponent::BindAbilityActions(const UGSInputConfig* InputConfig, UserClass* Object, PressedFuncType PressedFunc, ReleasedFuncType ReleasedFunc)
+void UGSInputComponent::BindAbilityActions(const UGSInputConfig* InputConfig, UserClass* Object, PressedFuncType PressedFunc, ReleasedFuncType ReleasedFunc, TArray<uint32>& BindHandles)
 {
 	check(InputConfig);
 
@@ -52,12 +53,12 @@ void UGSInputComponent::BindAbilityActions(const UGSInputConfig* InputConfig, Us
 		{
 			if (PressedFunc)
 			{
-				BindAction(Action.InputAction, ETriggerEvent::Started, Object, PressedFunc, Action.InputTag);
+				BindHandles.Add(BindAction(Action.InputAction, ETriggerEvent::Triggered, Object, PressedFunc, Action.InputTag).GetHandle());
 			}
 
 			if (ReleasedFunc)
 			{
-				BindAction(Action.InputAction, ETriggerEvent::Completed, Object, ReleasedFunc, Action.InputTag);
+				BindHandles.Add(BindAction(Action.InputAction, ETriggerEvent::Completed, Object, ReleasedFunc, Action.InputTag).GetHandle());
 			}
 		}
 	}

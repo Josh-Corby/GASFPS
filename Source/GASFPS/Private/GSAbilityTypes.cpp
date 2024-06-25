@@ -3,6 +3,29 @@
 
 #include "GSAbilityTypes.h"
 
+#include "AbilitySystem/GSAbilitySourceInterface.h"
+
+GASFPS_API FGSGameplayEffectContext* FGSGameplayEffectContext::ExtractEffectContext(FGameplayEffectContextHandle Handle)
+{
+	FGameplayEffectContext* BaseEffectContext = Handle.Get();
+	if ((BaseEffectContext != nullptr) && BaseEffectContext->GetScriptStruct()->IsChildOf(FGSGameplayEffectContext::StaticStruct()))
+	{
+		return (FGSGameplayEffectContext*)BaseEffectContext;
+	}
+
+	return nullptr;
+}
+
+void FGSGameplayEffectContext::SetAbilitySource(const IGSAbilitySourceInterface* InObject, float InSourceLevel)
+{
+	AbilitySourceObject = MakeWeakObjectPtr(Cast<const UObject>(InObject));
+}
+
+const IGSAbilitySourceInterface* FGSGameplayEffectContext::GetAbilitySource() const
+{
+	return Cast<IGSAbilitySourceInterface>(AbilitySourceObject.Get());
+}
+
 bool FGSGameplayEffectContext::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
 {
 	uint8 RepBits = 0;

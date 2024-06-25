@@ -10,6 +10,16 @@ FGSGameplayTags FGSGameplayTags::GameplayTags;;
 
 void FGSGameplayTags::InitializeNativeGameplayTags()
 {
+		GameplayTags.Ability_ActivateFail_ActivationGroup = UGameplayTagsManager::Get().AddNativeGameplayTag(
+			FName("Ability.ActivateFail.ActivationGroup"),
+			FString("Ability failed to activate because of its activation group.")
+		);
+
+		GameplayTags.Ability_ActivateFail_ActivationGroup = UGameplayTagsManager::Get().AddNativeGameplayTag(
+			FName("Ability.ActivateFail.IsDead"),
+			FString("Ability failed to activate because its owner is dead.")
+		);
+
 		GameplayTags.InitState_Spawned = UGameplayTagsManager::Get().AddNativeGameplayTag(
 			FName("InitState.Spawned"),
 			FString("1: Actor/component has initially spawned and can be extended")
